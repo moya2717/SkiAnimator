@@ -16,6 +16,10 @@ function normalizeSportType(activity) {
   return String(activity.sport_type ?? activity.type ?? '').trim();
 }
 
+function canonicalizeSportType(activity) {
+  return normalizeSportType(activity).toLowerCase().replace(/[^a-z]/g, '');
+}
+
 const WINTER_SPORT_TYPES = new Set([
   'alpineski',
   'backcountryski',
@@ -38,13 +42,12 @@ function toSportLabel(activity) {
 }
 
 export function isAlpineSki(activity) {
-  const sportType = normalizeSportType(activity).toLowerCase();
+  const sportType = canonicalizeSportType(activity);
   return sportType === 'alpineski' || sportType === 'ski';
 }
 
 export function isWinterSport(activity) {
-  const sportType = normalizeSportType(activity).toLowerCase();
-  return WINTER_SPORT_TYPES.has(sportType);
+  return WINTER_SPORT_TYPES.has(canonicalizeSportType(activity));
 }
 
 function activityDifficulty(activity) {
