@@ -131,7 +131,7 @@ test('GET /api/strava/status returns connected state when token exists', async (
 
 
 
-test('GET /api/runs paginates Strava activities and includes only AlpineSki entries', async () => {
+test('GET /api/runs paginates Strava activities and includes AlpineSki + legacy Ski entries', async () => {
   const responses = [
     [
       {
@@ -188,8 +188,8 @@ test('GET /api/runs paginates Strava activities and includes only AlpineSki entr
 
       const { status, body } = await requestJson(baseUrl, '/api/runs');
       assert.equal(status, 200);
-      assert.equal(body.runs.length, 1);
-      assert.equal(body.runs[0].id, 'strava-602');
+      assert.equal(body.runs.length, 2);
+      assert.deepEqual(body.runs.map((run) => run.id), ['strava-601', 'strava-602']);
       assert.equal(body.runs[0].source, 'strava');
     },
     { stravaFetch, stravaPageSize: 1 }
