@@ -3,20 +3,49 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SkiAnimator</title>
+    <title>SkiAnimator Dashboard</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <main>
-      <h1>SkiAnimator</h1>
-      <p id="connectionStatus"></p>
-      <div class="actions">
-        <button id="connectBtn">Connect Strava</button>
-        <button id="disconnectBtn">Disconnect</button>
-      </div>
-      <p id="meta"></p>
-      <canvas id="runCanvas" width="820" height="280"></canvas>
-      <ul id="runsList"></ul>
+      <header class="topbar">
+        <div>
+          <h1>SkiAnimator Dashboard</h1>
+          <p id="meta"></p>
+        </div>
+        <div class="actions">
+          <button id="connectBtn">Connect Strava</button>
+          <button id="disconnectBtn">Disconnect</button>
+        </div>
+      </header>
+
+      <p id="connectionStatus" class="status"></p>
+
+      <section class="filters card">
+        <input id="searchInput" type="search" placeholder="Search activities or runs" />
+        <select id="sportFilter">
+          <option value="all">All sports</option>
+        </select>
+        <select id="difficultyFilter">
+          <option value="all">All run difficulties</option>
+          <option value="green">Green</option>
+          <option value="blue">Blue</option>
+          <option value="black">Black</option>
+        </select>
+      </section>
+
+      <section class="dashboard-grid">
+        <article class="card">
+          <h2>Run animation</h2>
+          <canvas id="runCanvas" width="820" height="280"></canvas>
+          <ul id="runsList" class="list"></ul>
+        </article>
+
+        <article class="card">
+          <h2>Activities</h2>
+          <ul id="activitiesList" class="list"></ul>
+        </article>
+      </section>
     </main>
     <script type="module" src="/app.js"></script>
   </body>

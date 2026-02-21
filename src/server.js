@@ -10,6 +10,7 @@ import {
   fetchAthleteActivities,
   fetchActivityStreams,
   mapActivitiesToAnimationRuns,
+  mapActivitiesToDashboardActivities,
   mapActivityStreamsToTrack
 } from './lib/stravaClient.js';
 import { createTokenStore } from './lib/tokenStore.js';
@@ -137,7 +138,7 @@ async function ensureFreshToken(tokenStore, stravaConfig) {
   });
 }
 
-async function fetchWinterActivities(accessToken, stravaFetch, perPage) {
+async function fetchAthleteActivityPages(accessToken, stravaFetch, perPage) {
   const allActivities = [];
 
   for (let page = 1; page <= STRAVA_MAX_PAGES; page += 1) {
@@ -259,7 +260,7 @@ export function createRequestHandler(
     if (pathname === '/api/runs') {
       async function sendFallbackRuns() {
         const fallback = await store.getRunsFixture();
-        sendJson(response, 200, fallback);
+        sendJson(response, 200, { ...fallback, mode: 'fixture' });
       }
 
       if (!ensureStravaConfigured(stravaConfig) || !tokenStore.get()) {
@@ -269,21 +270,53 @@ export function createRequestHandler(
 
       try {
         const token = await ensureFreshToken(tokenStore, stravaConfig);
-        const activities = await fetchWinterActivities(token.access_token, stravaFetch, stravaPageSize);
+        const activities = await fetchAthleteActivityPages(token.access_token, stravaFetch, stravaPageSize);
         const runs = mapActivitiesToAnimationRuns(activities);
-
-        if (runs.length === 0) {
-          await sendFallbackRuns();
-          return;
-        }
 
         sendJson(response, 200, {
           resort: token.athlete?.username ?? 'Strava Skier',
           date: new Date().toISOString().slice(0, 10),
-          runs
+          runs,
+          mode: 'strava',
+          totalActivities: activities.length
         });
       } catch {
         await sendFallbackRuns();
+      }
+      return;
+    }
+
+    if (pathname === '/api/activities') {
+      async function sendFallbackActivities() {
+        const fallback = await store.getRunsFixture();
+        const activities = fallback.runs.map((run) => ({
+          id: run.id,
+          name: run.name,
+          sportType: 'AlpineSki',
+          distanceKm: run.distanceKm,
+          verticalM: run.verticalM,
+          durationMinutes: run.durationMinutes,
+          startDateLocal: `${fallback.date}T00:00:00Z`,
+          source: 'fixture'
+        }));
+
+        sendJson(response, 200, { activities, mode: 'fixture' });
+      }
+
+      if (!ensureStravaConfigured(stravaConfig) || !tokenStore.get()) {
+        await sendFallbackActivities();
+        return;
+      }
+
+      try {
+        const token = await ensureFreshToken(tokenStore, stravaConfig);
+        const activities = await fetchAthleteActivityPages(token.access_token, stravaFetch, stravaPageSize);
+        sendJson(response, 200, {
+          activities: mapActivitiesToDashboardActivities(activities),
+          mode: 'strava'
+        });
+      } catch {
+        await sendFallbackActivities();
       }
       return;
     }
@@ -314,7 +347,7 @@ export function createRequestHandler(
           const activityId = parseStravaRunId(runId);
           if (activityId) {
             const token = await ensureFreshToken(tokenStore, stravaConfig);
-            const activities = await fetchWinterActivities(token.access_token, stravaFetch, stravaPageSize);
+            const activities = await fetchAthleteActivityPages(token.access_token, stravaFetch, stravaPageSize);
             const activity = activities.find((item) => item.id === activityId);
 
             if (activity) {

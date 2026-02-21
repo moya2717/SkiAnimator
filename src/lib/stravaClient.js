@@ -32,6 +32,11 @@ function isoTimestampFromOffset(baseTimestamp, secondsOffset) {
   return new Date(baseMs + secondsOffset * 1000).toISOString();
 }
 
+function toSportLabel(activity) {
+  const sportType = normalizeSportType(activity);
+  return sportType || 'Unknown';
+}
+
 export function isWinterSport(activity) {
   const sportType = normalizeSportType(activity).toLowerCase();
   return WINTER_SPORT_TYPES.has(sportType);
@@ -47,18 +52,29 @@ function activityDifficulty(activity) {
   return 'green';
 }
 
-export function mapActivitiesToAnimationRuns(activities) {
-  return activities.filter(isWinterSport).map((activity) => ({
+function mapActivityBase(activity) {
+  return {
     id: `strava-${activity.id}`,
     activityId: activity.id,
     name: activity.name,
-    distanceKm: Number((activity.distance / 1000).toFixed(2)),
+    sportType: toSportLabel(activity),
+    distanceKm: Number(((activity.distance ?? 0) / 1000).toFixed(2)),
     verticalM: Math.round(activity.total_elevation_gain ?? 0),
     durationMinutes: Math.max(1, Math.round((activity.moving_time ?? 0) / 60)),
-    difficulty: activityDifficulty(activity),
     startDateLocal: activity.start_date_local,
     source: 'strava'
+  };
+}
+
+export function mapActivitiesToAnimationRuns(activities) {
+  return activities.filter(isWinterSport).map((activity) => ({
+    ...mapActivityBase(activity),
+    difficulty: activityDifficulty(activity)
   }));
+}
+
+export function mapActivitiesToDashboardActivities(activities) {
+  return activities.map(mapActivityBase);
 }
 
 export function buildAuthorizeUrl({ clientId, redirectUri, state }) {
