@@ -10,19 +10,18 @@ import {
 
 const activitiesFixturePath = new URL('./fixtures/strava-activities.fixture.json', import.meta.url);
 
-test('mapActivitiesToAnimationRuns keeps only ski activities and maps fields deterministically', async () => {
+test('mapActivitiesToAnimationRuns keeps only AlpineSki activities and maps fields deterministically', async () => {
   const activities = JSON.parse(await readFile(activitiesFixturePath, 'utf8'));
   const runs = mapActivitiesToAnimationRuns(activities);
 
-  assert.equal(runs.length, 2);
-  assert.deepEqual(runs.map((run) => run.id), ['strava-101', 'strava-102']);
+  assert.equal(runs.length, 1);
+  assert.deepEqual(runs.map((run) => run.id), ['strava-101']);
   assert.equal(runs[0].distanceKm, 12.45);
   assert.equal(runs[0].difficulty, 'blue');
-  assert.equal(runs[1].difficulty, 'black');
 });
 
 
-test('mapActivitiesToAnimationRuns accepts legacy ski types with varied casing', () => {
+test('mapActivitiesToAnimationRuns rejects non-AlpineSki activities', () => {
   const runs = mapActivitiesToAnimationRuns([
     {
       id: 201,
@@ -44,7 +43,7 @@ test('mapActivitiesToAnimationRuns accepts legacy ski types with varied casing',
     }
   ]);
 
-  assert.deepEqual(runs.map((run) => run.id), ['strava-201', 'strava-202']);
+  assert.deepEqual(runs, []);
 });
 
 test('buildAuthorizeUrl includes required oauth fields', () => {

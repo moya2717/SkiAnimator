@@ -37,6 +37,10 @@ function toSportLabel(activity) {
   return sportType || 'Unknown';
 }
 
+export function isAlpineSki(activity) {
+  return normalizeSportType(activity).toLowerCase() === 'alpineski';
+}
+
 export function isWinterSport(activity) {
   const sportType = normalizeSportType(activity).toLowerCase();
   return WINTER_SPORT_TYPES.has(sportType);
@@ -67,7 +71,7 @@ function mapActivityBase(activity) {
 }
 
 export function mapActivitiesToAnimationRuns(activities) {
-  return activities.filter(isWinterSport).map((activity) => ({
+  return activities.filter(isAlpineSki).map((activity) => ({
     ...mapActivityBase(activity),
     difficulty: activityDifficulty(activity)
   }));
@@ -75,6 +79,10 @@ export function mapActivitiesToAnimationRuns(activities) {
 
 export function mapActivitiesToDashboardActivities(activities) {
   return activities.map(mapActivityBase);
+}
+
+export function mapActivitiesToAlpineActivities(activities) {
+  return activities.filter(isAlpineSki).map(mapActivityBase);
 }
 
 export function buildAuthorizeUrl({ clientId, redirectUri, state }) {

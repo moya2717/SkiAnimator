@@ -1,5 +1,12 @@
 import { chooseZoomForBounds, computeBounds, latLonToWorldPixels, tileRangeForBounds } from './geo.js';
-import { appReducer, initialState, selectVisibleActivities, selectVisibleRuns } from './state.js';
+import {
+  appReducer,
+  initialState,
+  selectAvailableDays,
+  selectAvailableYears,
+  selectVisibleActivities,
+  selectVisibleRuns
+} from './state.js';
 
 function colorForDifficulty(level) {
   if (level === 'black') return '#f97316';
@@ -175,10 +182,13 @@ async function loadJson(path) {
   return response.json();
 }
 
-function renderRuns(element, runs) {
+function renderRuns(element, runs, selectedRunId) {
   element.innerHTML = runs.length
     ? runs
-        .map((run) => `<li data-run-id="${run.id}"><strong>${run.name}</strong> • ${run.difficulty} • ${run.distanceKm} km • ${run.durationMinutes} min</li>`)
+        .map(
+          (run) =>
+            `<li data-run-id="${run.id}" class="${selectedRunId === run.id ? 'selected' : ''}"><strong>${run.name}</strong> • ${run.difficulty} • ${run.distanceKm} km • ${run.durationMinutes} min</li>`
+        )
         .join('')
     : '<li>No runs match the selected filters.</li>';
 }
@@ -186,10 +196,27 @@ function renderRuns(element, runs) {
 function renderActivities(element, activities) {
   element.innerHTML = activities.length
     ? activities
-        .slice(0, 80)
         .map((a) => `<li><strong>${a.name}</strong> • ${a.sportType} • ${a.distanceKm} km • ${a.durationMinutes} min</li>`)
         .join('')
     : '<li>No activities match the selected filters.</li>';
+}
+
+function syncSelectOptions(select, values, allLabel) {
+  const currentValue = select.value;
+  select.innerHTML = '';
+  const allOption = document.createElement('option');
+  allOption.value = 'all';
+  allOption.textContent = allLabel;
+  select.append(allOption);
+
+  values.forEach((value) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = value;
+    select.append(option);
+  });
+
+  select.value = values.includes(currentValue) ? currentValue : 'all';
 }
 
 function stravaStatusMessage(search) {
@@ -204,10 +231,6 @@ function stravaStatusMessage(search) {
   return null;
 }
 
-function uniqueSportTypes(activities) {
-  return [...new Set(activities.map((activity) => activity.sportType).filter(Boolean))].sort();
-}
-
 async function boot() {
   const connectButton = document.querySelector('#connectBtn');
   const disconnectButton = document.querySelector('#disconnectBtn');
@@ -217,19 +240,24 @@ async function boot() {
   const runsList = document.querySelector('#runsList');
   const activitiesList = document.querySelector('#activitiesList');
   const searchInput = document.querySelector('#searchInput');
-  const sportFilter = document.querySelector('#sportFilter');
+  const yearFilter = document.querySelector('#yearFilter');
+  const dayFilter = document.querySelector('#dayFilter');
   const difficultyFilter = document.querySelector('#difficultyFilter');
 
-  if (!(connectButton && disconnectButton && connectionStatus && meta && canvas instanceof HTMLCanvasElement && runsList && activitiesList && searchInput && sportFilter instanceof HTMLSelectElement && difficultyFilter instanceof HTMLSelectElement)) return;
+  if (!(connectButton && disconnectButton && connectionStatus && meta && canvas instanceof HTMLCanvasElement && runsList && activitiesList && searchInput && yearFilter instanceof HTMLSelectElement && dayFilter instanceof HTMLSelectElement && difficultyFilter instanceof HTMLSelectElement)) return;
 
   let state = initialState;
   const dispatch = (action) => {
     state = appReducer(state, action);
     const visibleRuns = selectVisibleRuns(state);
     const visibleActivities = selectVisibleActivities(state);
-    renderRuns(runsList, visibleRuns);
+    renderRuns(runsList, visibleRuns, state.selectedRunId);
     renderActivities(activitiesList, visibleActivities);
-    const primaryRun = visibleRuns[0];
+    syncSelectOptions(yearFilter, selectAvailableYears(state), 'All years');
+    yearFilter.value = state.yearFilter;
+    syncSelectOptions(dayFilter, selectAvailableDays(state), 'All days');
+    dayFilter.value = state.dayFilter;
+    const primaryRun = visibleRuns.find((run) => run.id === state.selectedRunId) ?? visibleRuns[0];
     if (primaryRun) loadJson(`/api/runs/${encodeURIComponent(primaryRun.id)}/track`).then((track) => animateRunTrack(canvas, primaryRun, track)).catch(() => animateFallbackRuns(canvas, visibleRuns.slice(0, 4)));
     else animateFallbackRuns(canvas, state.runs.slice(0, 4));
   };
@@ -240,7 +268,7 @@ async function boot() {
 
   meta.textContent = `${runsPayload.resort ?? 'Dashboard'} • ${runsPayload.date ?? new Date().toISOString().slice(0, 10)}`;
   const callbackMessage = stravaStatusMessage(window.location.search);
-  connectionStatus.textContent = callbackMessage ?? (status.connected ? `Connected as ${status.athlete?.username ?? 'athlete'} • ${activitiesPayload.activities.length} activities loaded` : 'Using deterministic fixture data. Connect Strava for your activities.');
+  connectionStatus.textContent = callbackMessage ?? (status.connected ? `Connected as ${status.athlete?.username ?? 'athlete'} • ${activitiesPayload.activities.length} alpine ski activities loaded` : 'Using deterministic fixture data. Connect Strava for your alpine ski activities.');
 
   connectButton.disabled = !status.configured;
   connectButton.addEventListener('click', async () => {
@@ -252,16 +280,16 @@ async function boot() {
     window.location.reload();
   });
 
-  uniqueSportTypes(activitiesPayload.activities).forEach((type) => {
-    const option = document.createElement('option');
-    option.value = type;
-    option.textContent = type;
-    sportFilter.append(option);
-  });
-
   searchInput.addEventListener('input', () => dispatch({ type: 'search/set', payload: searchInput.value }));
-  sportFilter.addEventListener('change', () => dispatch({ type: 'sport/set', payload: sportFilter.value }));
+  yearFilter.addEventListener('change', () => dispatch({ type: 'year/set', payload: yearFilter.value }));
+  dayFilter.addEventListener('change', () => dispatch({ type: 'day/set', payload: dayFilter.value }));
   difficultyFilter.addEventListener('change', () => dispatch({ type: 'difficulty/set', payload: difficultyFilter.value }));
+  runsList.addEventListener('click', (event) => {
+    const item = event.target instanceof HTMLElement ? event.target.closest('[data-run-id]') : null;
+    if (item instanceof HTMLElement && item.dataset.runId) {
+      dispatch({ type: 'run/select', payload: item.dataset.runId });
+    }
+  });
 
   dispatch({ type: 'dashboard/set', payload: { runs: runsPayload.runs, activities: activitiesPayload.activities } });
 }
