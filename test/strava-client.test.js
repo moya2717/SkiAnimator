@@ -22,7 +22,7 @@ test('mapActivitiesToAnimationRuns keeps only AlpineSki activities and maps fiel
 });
 
 
-test('mapActivitiesToAnimationRuns rejects non-AlpineSki activities', () => {
+test('mapActivitiesToAnimationRuns includes legacy Ski type and rejects non-ski sports', () => {
   const runs = mapActivitiesToAnimationRuns([
     {
       id: 201,
@@ -44,7 +44,7 @@ test('mapActivitiesToAnimationRuns rejects non-AlpineSki activities', () => {
     }
   ]);
 
-  assert.deepEqual(runs, []);
+  assert.deepEqual(runs.map((run) => run.id), ['strava-201']);
 });
 
 test('buildAuthorizeUrl includes required oauth fields', () => {

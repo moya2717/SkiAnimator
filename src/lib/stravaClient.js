@@ -38,7 +38,8 @@ function toSportLabel(activity) {
 }
 
 export function isAlpineSki(activity) {
-  return normalizeSportType(activity).toLowerCase() === 'alpineski';
+  const sportType = normalizeSportType(activity).toLowerCase();
+  return sportType === 'alpineski' || sportType === 'ski';
 }
 
 export function isWinterSport(activity) {
