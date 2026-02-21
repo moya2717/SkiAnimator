@@ -21,12 +21,13 @@ async function withServer(run) {
   }
 }
 
-async function withConfiguredServer(run) {
+async function withConfiguredServer(run, serverOptions = {}) {
   const store = createFixtureStore({ baseDir: localFixtureDir.pathname });
   const tokenStore = createTokenStore();
   const server = createAppServer(store, {
     stravaConfig: { clientId: 'id-1', clientSecret: 'secret-1' },
-    tokenStore
+    tokenStore,
+    ...serverOptions
   });
   await new Promise((resolve) => server.listen(0, resolve));
   const { port } = server.address();
@@ -111,4 +112,56 @@ test('GET /api/strava/status returns connected state when token exists', async (
     assert.equal(body.connected, true);
     assert.equal(body.athlete.username, 'ski-user');
   });
+});
+
+
+test('GET /api/runs/:id/track returns Strava stream track for connected user', async () => {
+  const responses = [
+    [
+      {
+        id: 101,
+        name: 'Morning Groomers',
+        distance: 12450,
+        moving_time: 3180,
+        total_elevation_gain: 510,
+        sport_type: 'AlpineSki',
+        start_date: '2026-01-03T08:00:00Z'
+      }
+    ],
+    {
+      latlng: { data: [[46.1, 7.2], [46.09, 7.21]] },
+      altitude: { data: [2488.8, 2412.2] },
+      time: { data: [0, 95] }
+    }
+  ];
+
+  const stravaFetch = async () => {
+    const payload = responses.shift();
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return payload;
+      }
+    };
+  };
+
+  await withConfiguredServer(
+    async (baseUrl, tokenStore) => {
+      tokenStore.set({
+        access_token: 'token-1',
+        refresh_token: 'refresh-1',
+        expires_at: 9999999999,
+        athlete: { username: 'ski-user' }
+      });
+
+      const { status, body } = await requestJson(baseUrl, '/api/runs/strava-101/track');
+      assert.equal(status, 200);
+      assert.equal(body.runId, 'strava-101');
+      assert.equal(body.source, 'strava');
+      assert.equal(body.points.length, 2);
+      assert.equal(body.points[1].timestamp, '2026-01-03T08:01:35.000Z');
+    },
+    { stravaFetch }
+  );
 });

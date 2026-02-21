@@ -8,7 +8,9 @@ import {
   buildAuthorizeUrl,
   exchangeCodeForToken,
   fetchAthleteActivities,
-  mapActivitiesToAnimationRuns
+  fetchActivityStreams,
+  mapActivitiesToAnimationRuns,
+  mapActivityStreamsToTrack
 } from './lib/stravaClient.js';
 import { createTokenStore } from './lib/tokenStore.js';
 
@@ -92,6 +94,11 @@ function ensureStravaConfigured(config) {
   return Boolean(config.clientId && config.clientSecret);
 }
 
+function parseStravaRunId(runId) {
+  const match = /^strava-(\d+)$/.exec(runId);
+  return match ? Number(match[1]) : null;
+}
+
 async function ensureFreshToken(tokenStore, stravaConfig) {
   const token = tokenStore.get();
   if (!token) {
@@ -123,6 +130,7 @@ export function createRequestHandler(
 ) {
   const stravaConfig = options.stravaConfig ?? createStravaConfig();
   const tokenStore = options.tokenStore ?? createTokenStore();
+  const stravaFetch = options.stravaFetch ?? fetch;
 
   return async function requestHandler(request, response) {
     if (!request.url) {
@@ -182,7 +190,8 @@ export function createRequestHandler(
         const token = await exchangeCodeForToken({
           code,
           clientId: stravaConfig.clientId,
-          clientSecret: stravaConfig.clientSecret
+          clientSecret: stravaConfig.clientSecret,
+          fetchImpl: stravaFetch
         });
 
         tokenStore.set(token);
@@ -209,7 +218,7 @@ export function createRequestHandler(
 
       try {
         const token = await ensureFreshToken(tokenStore, stravaConfig);
-        const activities = await fetchAthleteActivities({ accessToken: token.access_token });
+        const activities = await fetchAthleteActivities({ accessToken: token.access_token, fetchImpl: stravaFetch });
         const runs = mapActivitiesToAnimationRuns(activities);
 
         if (runs.length === 0) {
@@ -247,13 +256,45 @@ export function createRequestHandler(
 
     const runTrackMatch = matchPath(pathname, '/api/runs/:id/track');
     if (runTrackMatch) {
-      const track = await store.getRunTrack(runTrackMatch.id);
-      if (!track) {
+      const runId = runTrackMatch.id;
+
+      if (ensureStravaConfigured(stravaConfig) && tokenStore.get()) {
+        try {
+          const activityId = parseStravaRunId(runId);
+          if (activityId) {
+            const token = await ensureFreshToken(tokenStore, stravaConfig);
+            const activities = await fetchAthleteActivities({
+              accessToken: token.access_token,
+              perPage: 100,
+              fetchImpl: stravaFetch
+            });
+            const activity = activities.find((item) => item.id === activityId);
+
+            if (activity) {
+              const streams = await fetchActivityStreams({
+                activityId,
+                accessToken: token.access_token,
+                fetchImpl: stravaFetch
+              });
+              const track = mapActivityStreamsToTrack(activity, streams);
+              if (track) {
+                sendJson(response, 200, track);
+                return;
+              }
+            }
+          }
+        } catch {
+          // fallback to deterministic fixtures below
+        }
+      }
+
+      const fixtureTrack = await store.getRunTrack(runId);
+      if (!fixtureTrack) {
         sendJson(response, 404, { error: 'Run track not found' });
         return;
       }
 
-      sendJson(response, 200, track);
+      sendJson(response, 200, fixtureTrack);
       return;
     }
 

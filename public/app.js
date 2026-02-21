@@ -8,14 +8,14 @@ function colorForDifficulty(level) {
   return '#4ade80';
 }
 
-function drawSlope(context, width, height) {
+function drawBackdrop(context, width, height) {
   context.fillStyle = '#0b1021';
   context.fillRect(0, 0, width, height);
 
   context.fillStyle = '#1d4ed8';
   context.fillRect(0, 0, width, 34);
 
-  context.strokeStyle = '#94a3b8';
+  context.strokeStyle = '#334155';
   for (let y = 48; y < height; y += 24) {
     context.beginPath();
     context.moveTo(0, y);
@@ -25,23 +25,11 @@ function drawSlope(context, width, height) {
 }
 
 function drawPixelSkier(context, x, y, color) {
-  const pixels = [
-    [1, 0],
-    [0, 1],
-    [1, 1],
-    [2, 1],
-    [1, 2],
-    [0, 3],
-    [2, 3],
-    [3, 4],
-    [-1, 4]
-  ];
+  const pixels = [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2], [0, 3], [2, 3], [3, 4], [-1, 4]];
   const size = 4;
 
   context.fillStyle = color;
-  pixels.forEach(([dx, dy]) => {
-    context.fillRect(x + dx * size, y + dy * size, size, size);
-  });
+  pixels.forEach(([dx, dy]) => context.fillRect(x + dx * size, y + dy * size, size, size));
 
   context.strokeStyle = '#e2e8f0';
   context.beginPath();
@@ -59,7 +47,101 @@ function renderRunList(element, runs) {
     .join('');
 }
 
-function animateRuns(canvas, runs) {
+function computeBounds(points) {
+  return points.reduce(
+    (bounds, point) => ({
+      minLat: Math.min(bounds.minLat, point.lat),
+      maxLat: Math.max(bounds.maxLat, point.lat),
+      minLon: Math.min(bounds.minLon, point.lon),
+      maxLon: Math.max(bounds.maxLon, point.lon)
+    }),
+    { minLat: Infinity, maxLat: -Infinity, minLon: Infinity, maxLon: -Infinity }
+  );
+}
+
+function createProjector(canvas, points, padding = 20) {
+  const bounds = computeBounds(points);
+  const lonSpan = Math.max(0.000001, bounds.maxLon - bounds.minLon);
+  const latSpan = Math.max(0.000001, bounds.maxLat - bounds.minLat);
+  const drawWidth = canvas.width - padding * 2;
+  const drawHeight = canvas.height - padding * 2;
+
+  return function project(point) {
+    const x = padding + ((point.lon - bounds.minLon) / lonSpan) * drawWidth;
+    const y = padding + (1 - (point.lat - bounds.minLat) / latSpan) * drawHeight;
+    return { x, y };
+  };
+}
+
+function trackProgress(points, now) {
+  const startMs = Date.parse(points[0].timestamp);
+  const endMs = Date.parse(points[points.length - 1].timestamp);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return 1;
+  }
+  const elapsedMs = ((now - startMs) % (endMs - startMs + 1) + (endMs - startMs + 1)) % (endMs - startMs + 1);
+  return elapsedMs / (endMs - startMs);
+}
+
+function interpolatePosition(points, progress) {
+  if (points.length === 1) {
+    return points[0];
+  }
+
+  const target = progress * (points.length - 1);
+  const index = Math.floor(target);
+  const nextIndex = Math.min(index + 1, points.length - 1);
+  const blend = target - index;
+  const current = points[index];
+  const next = points[nextIndex];
+
+  return {
+    lat: current.lat + (next.lat - current.lat) * blend,
+    lon: current.lon + (next.lon - current.lon) * blend
+  };
+}
+
+function drawTrack(context, projectedPoints, color) {
+  if (projectedPoints.length < 2) {
+    return;
+  }
+
+  context.strokeStyle = color;
+  context.lineWidth = 2;
+  context.beginPath();
+  context.moveTo(projectedPoints[0].x, projectedPoints[0].y);
+  projectedPoints.slice(1).forEach((point) => context.lineTo(point.x, point.y));
+  context.stroke();
+}
+
+function animateRunTrack(canvas, run, track) {
+  const context = canvas.getContext('2d');
+  if (!context || !track || !Array.isArray(track.points) || track.points.length === 0) {
+    return;
+  }
+
+  const project = createProjector(canvas, track.points);
+  const projectedTrack = track.points.map(project);
+
+  function frame() {
+    drawBackdrop(context, canvas.width, canvas.height);
+    drawTrack(context, projectedTrack, colorForDifficulty(run.difficulty));
+
+    const progress = trackProgress(track.points, Date.now());
+    const position = interpolatePosition(track.points, progress);
+    const projectedPosition = project(position);
+
+    context.fillStyle = '#e2e8f0';
+    context.fillText(run.name, 12, 50);
+    drawPixelSkier(context, projectedPosition.x, projectedPosition.y, colorForDifficulty(run.difficulty));
+
+    requestAnimationFrame(frame);
+  }
+
+  frame();
+}
+
+function animateFallbackRuns(canvas, runs) {
   const context = canvas.getContext('2d');
   if (!context) {
     return;
@@ -73,7 +155,7 @@ function animateRuns(canvas, runs) {
   }));
 
   function frame() {
-    drawSlope(context, canvas.width, canvas.height);
+    drawBackdrop(context, canvas.width, canvas.height);
 
     lanes.forEach((lane, index) => {
       lane.x += lane.speed;
@@ -94,6 +176,14 @@ function animateRuns(canvas, runs) {
 
 async function loadStatus() {
   const response = await fetch('/api/strava/status');
+  return response.json();
+}
+
+async function loadRunTrack(runId) {
+  const response = await fetch(`/api/runs/${encodeURIComponent(runId)}/track`);
+  if (!response.ok) {
+    return null;
+  }
   return response.json();
 }
 
@@ -132,7 +222,15 @@ async function boot() {
   const data = await runsResponse.json();
   meta.textContent = `${data.resort} • ${data.date}`;
   renderRunList(list, data.runs);
-  animateRuns(canvas, data.runs.slice(0, 4));
+
+  const primaryRun = data.runs[0];
+  const track = primaryRun ? await loadRunTrack(primaryRun.id) : null;
+  if (track) {
+    animateRunTrack(canvas, primaryRun, track);
+    return;
+  }
+
+  animateFallbackRuns(canvas, data.runs.slice(0, 4));
 }
 
 boot();
