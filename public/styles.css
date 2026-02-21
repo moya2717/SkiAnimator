@@ -52,7 +52,7 @@ h1 {
 
 .filters {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
   gap: 0.75rem;
   margin-bottom: 1rem;
 }
@@ -98,6 +98,17 @@ button:disabled {
 
 .list li {
   margin-bottom: 0.45rem;
+}
+
+#runsList li {
+  cursor: pointer;
+}
+
+#runsList li.selected {
+  color: #f8fafc;
+  background: rgba(56, 189, 248, 0.16);
+  border-radius: 8px;
+  padding: 0.3rem 0.45rem;
 }
 
 @media (max-width: 900px) {

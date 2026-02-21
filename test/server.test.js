@@ -116,7 +116,7 @@ test('GET /api/strava/status returns connected state when token exists', async (
 
 
 
-test('GET /api/runs paginates Strava activities and includes legacy ski activity type', async () => {
+test('GET /api/runs paginates Strava activities and includes only AlpineSki entries', async () => {
   const responses = [
     [
       {
@@ -138,6 +138,15 @@ test('GET /api/runs paginates Strava activities and includes legacy ski activity
         total_elevation_gain: 480,
         type: 'Ski',
         start_date_local: '2026-01-03T09:00:00Z'
+      },
+      {
+        id: 602,
+        name: 'Alpine Session',
+        distance: 6200,
+        moving_time: 2100,
+        total_elevation_gain: 530,
+        sport_type: 'AlpineSki',
+        start_date_local: '2026-01-03T10:00:00Z'
       }
     ]
   ];
@@ -165,7 +174,7 @@ test('GET /api/runs paginates Strava activities and includes legacy ski activity
       const { status, body } = await requestJson(baseUrl, '/api/runs');
       assert.equal(status, 200);
       assert.equal(body.runs.length, 1);
-      assert.equal(body.runs[0].id, 'strava-601');
+      assert.equal(body.runs[0].id, 'strava-602');
       assert.equal(body.runs[0].source, 'strava');
     },
     { stravaFetch, stravaPageSize: 1 }
@@ -294,7 +303,7 @@ test('GET /api/runs returns empty run list when connected user has no winter act
   );
 });
 
-test('GET /api/activities returns mapped Strava activities', async () => {
+test('GET /api/activities returns only AlpineSki activities', async () => {
   const stravaFetch = async () => ({
     ok: true,
     status: 200,
@@ -308,6 +317,15 @@ test('GET /api/activities returns mapped Strava activities', async () => {
           total_elevation_gain: 430,
           sport_type: 'NordicSki',
           start_date_local: '2026-02-01T12:00:00Z'
+        },
+        {
+          id: 702,
+          name: 'Afternoon Laps',
+          distance: 8200,
+          moving_time: 2600,
+          total_elevation_gain: 690,
+          sport_type: 'AlpineSki',
+          start_date_local: '2026-02-01T14:00:00Z'
         }
       ];
     }
@@ -325,7 +343,8 @@ test('GET /api/activities returns mapped Strava activities', async () => {
       const { body } = await requestJson(baseUrl, '/api/activities');
       assert.equal(body.mode, 'strava');
       assert.equal(body.activities.length, 1);
-      assert.equal(body.activities[0].sportType, 'NordicSki');
+      assert.equal(body.activities[0].sportType, 'AlpineSki');
+      assert.equal(body.activities[0].id, 'strava-702');
     },
     { stravaFetch }
   );

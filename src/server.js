@@ -10,7 +10,7 @@ import {
   fetchAthleteActivities,
   fetchActivityStreams,
   mapActivitiesToAnimationRuns,
-  mapActivitiesToDashboardActivities,
+  mapActivitiesToAlpineActivities,
   mapActivityStreamsToTrack
 } from './lib/stravaClient.js';
 import { createTokenStore } from './lib/tokenStore.js';
@@ -312,7 +312,7 @@ export function createRequestHandler(
         const token = await ensureFreshToken(tokenStore, stravaConfig);
         const activities = await fetchAthleteActivityPages(token.access_token, stravaFetch, stravaPageSize);
         sendJson(response, 200, {
-          activities: mapActivitiesToDashboardActivities(activities),
+          activities: mapActivitiesToAlpineActivities(activities),
           mode: 'strava'
         });
       } catch {
