@@ -299,6 +299,13 @@ async function boot() {
 
   const runsResponse = await fetch('/api/runs');
   const data = await runsResponse.json();
+  const hasStravaRuns = Array.isArray(data.runs) && data.runs.some((run) => run.source === 'strava');
+
+  if (status.connected && !hasStravaRuns && !callbackMessage) {
+    connectionStatus.textContent =
+      'Connected to Strava, but no ski/snowboard activities were found yet. Recording a winter activity in Strava should populate this view.';
+  }
+
   meta.textContent = `${data.resort} • ${data.date}`;
   renderRunList(list, data.runs);
 

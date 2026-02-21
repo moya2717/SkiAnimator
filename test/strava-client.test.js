@@ -21,6 +21,32 @@ test('mapActivitiesToAnimationRuns keeps only ski activities and maps fields det
   assert.equal(runs[1].difficulty, 'black');
 });
 
+
+test('mapActivitiesToAnimationRuns accepts legacy ski types with varied casing', () => {
+  const runs = mapActivitiesToAnimationRuns([
+    {
+      id: 201,
+      name: 'Legacy Ski Activity',
+      type: 'Ski',
+      distance: 2100,
+      moving_time: 900,
+      total_elevation_gain: 200,
+      start_date_local: '2026-01-03T08:00:00Z'
+    },
+    {
+      id: 202,
+      name: 'Case Variant Snowboard',
+      sport_type: 'snowBoard',
+      distance: 2500,
+      moving_time: 1000,
+      total_elevation_gain: 500,
+      start_date_local: '2026-01-03T09:00:00Z'
+    }
+  ]);
+
+  assert.deepEqual(runs.map((run) => run.id), ['strava-201', 'strava-202']);
+});
+
 test('buildAuthorizeUrl includes required oauth fields', () => {
   const url = new URL(
     buildAuthorizeUrl({
