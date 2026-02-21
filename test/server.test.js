@@ -256,3 +256,77 @@ test('GET /auth/strava/callback redirects with token exchange failure details', 
     { stravaFetch }
   );
 });
+
+test('GET /api/runs returns empty run list when connected user has no winter activities', async () => {
+  const stravaFetch = async () => ({
+    ok: true,
+    status: 200,
+    async json() {
+      return [
+        {
+          id: 700,
+          name: 'City Ride',
+          distance: 21000,
+          moving_time: 3200,
+          total_elevation_gain: 120,
+          sport_type: 'Ride',
+          start_date_local: '2026-02-01T08:00:00Z'
+        }
+      ];
+    }
+  });
+
+  await withConfiguredServer(
+    async (baseUrl, tokenStore) => {
+      tokenStore.set({
+        access_token: 'token-1',
+        refresh_token: 'refresh-1',
+        expires_at: 9999999999,
+        athlete: { username: 'ski-user' }
+      });
+
+      const { body } = await requestJson(baseUrl, '/api/runs');
+      assert.equal(body.mode, 'strava');
+      assert.equal(body.totalActivities, 1);
+      assert.deepEqual(body.runs, []);
+    },
+    { stravaFetch }
+  );
+});
+
+test('GET /api/activities returns mapped Strava activities', async () => {
+  const stravaFetch = async () => ({
+    ok: true,
+    status: 200,
+    async json() {
+      return [
+        {
+          id: 701,
+          name: 'Lunch Nordic',
+          distance: 11000,
+          moving_time: 2800,
+          total_elevation_gain: 430,
+          sport_type: 'NordicSki',
+          start_date_local: '2026-02-01T12:00:00Z'
+        }
+      ];
+    }
+  });
+
+  await withConfiguredServer(
+    async (baseUrl, tokenStore) => {
+      tokenStore.set({
+        access_token: 'token-1',
+        refresh_token: 'refresh-1',
+        expires_at: 9999999999,
+        athlete: { username: 'ski-user' }
+      });
+
+      const { body } = await requestJson(baseUrl, '/api/activities');
+      assert.equal(body.mode, 'strava');
+      assert.equal(body.activities.length, 1);
+      assert.equal(body.activities[0].sportType, 'NordicSki');
+    },
+    { stravaFetch }
+  );
+});

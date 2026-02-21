@@ -1,12 +1,13 @@
 # SkiAnimator
 
-Connect your personal Strava account and generate pixel-style ski run animations from your winter activities.
+Connect your personal Strava account and browse a dashboard of all activities plus winter run animations.
 
 ## Features
 
 - Strava OAuth connect/disconnect flow for a single local user.
-- Pulls your latest Strava activities and filters to ski/snowboard sports.
-- Maps activity distance/time/elevation into animated pixel skiers.
+- Pulls your latest Strava activities and presents a searchable dashboard view.
+- Filters activities by sport type and runs by difficulty/search.
+- Maps winter activity distance/time/elevation into animated pixel skiers.
 - Deterministic fixture fallback when Strava is not configured.
 - Deterministic test suite using local fixtures.
 
@@ -53,4 +54,5 @@ npm test
 - `GET /api/strava/connect` — returns Strava authorize URL.
 - `GET /auth/strava/callback` — OAuth callback route.
 - `GET /api/strava/logout` — clear local in-memory token.
-- `GET /api/runs` — Strava-mapped ski runs, or deterministic fallback fixtures.
+- `GET /api/runs` — Strava-mapped winter runs, includes `totalActivities` when connected.
+- `GET /api/activities` — all mapped activities for dashboard filtering.
