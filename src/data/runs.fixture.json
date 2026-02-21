@@ -1,0 +1,27 @@
+{
+  "resort": "Alpine Ridge",
+  "date": "2026-01-18",
+  "runs": [
+    {
+      "name": "Summit Line",
+      "distanceKm": 3.2,
+      "verticalM": 640,
+      "durationMinutes": 11,
+      "difficulty": "black"
+    },
+    {
+      "name": "Pine Traverse",
+      "distanceKm": 2.1,
+      "verticalM": 410,
+      "durationMinutes": 8,
+      "difficulty": "blue"
+    },
+    {
+      "name": "Valley Cruiser",
+      "distanceKm": 4.0,
+      "verticalM": 520,
+      "durationMinutes": 14,
+      "difficulty": "green"
+    }
+  ]
+}

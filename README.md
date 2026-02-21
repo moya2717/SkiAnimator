@@ -2,23 +2,30 @@
 
 Take your ski and snowboard data from Strava and create a cool animation remembering the fun runs.
 
-## Move this project to your own GitHub
+This repository now includes a runnable starter app so you can clone it, open it in VS Code, and test immediately.
 
-If you want this code fully under your own account, you have two safe options.
+## What is included
 
-### Option A (recommended): fork in GitHub UI
-1. Open the repository page in GitHub.
-2. Click **Fork** (top-right).
-3. Choose your account/org.
-4. Clone your fork locally:
+- A minimal Node.js web server (`src/server.js`)
+- A deterministic fixture API (`src/data/runs.fixture.json`)
+- A small front-end animation demo (`public/*`)
+- A deterministic test (`test/server.test.js`)
+
+---
+
+## 1) Put this project in your GitHub account
+
+### Option A (recommended): Fork on GitHub
+1. Open the source repository page on GitHub.
+2. Click **Fork**.
+3. Select your account.
+4. In your terminal:
    ```bash
    git clone https://github.com/<your-user>/SkiAnimator.git
    cd SkiAnimator
    ```
 
-### Option B: keep local repo and repoint `origin`
-Use this if you already have the project locally and created a new empty repo in your GitHub account.
-
+### Option B: Push your local copy to a new empty repo you created
 ```bash
 git remote -v
 git remote rename origin upstream
@@ -26,47 +33,110 @@ git remote add origin https://github.com/<your-user>/SkiAnimator.git
 git push -u origin work
 ```
 
-After this:
-- `origin` = your GitHub repo
-- `upstream` = original repo (optional but useful for pulling updates)
+---
+
+## 2) Open it in VS Code
+
+1. Start VS Code.
+2. Click **File → Open Folder...**.
+3. Choose the local `SkiAnimator` folder.
+4. Open the integrated terminal in VS Code (**Terminal → New Terminal**).
+5. Confirm you are in the repo root:
+   ```bash
+   pwd
+   ```
 
 ---
 
-## Run locally to test
+## 3) Install prerequisites
 
-> Current repository snapshot contains documentation only and no runnable app entrypoint yet.
+- Node.js 20+
+- Git
 
-You can still validate your setup now, then run the app once source files are present.
-
-### 1) Verify Git is connected correctly
+Check versions:
 ```bash
-git remote -v
-git branch --show-current
-git status
+node -v
+git --version
 ```
-
-### 2) Add app code if this is an incomplete checkout
-If your full app is in another branch or remote, pull it in:
-```bash
-git fetch --all --prune
-git branch -a
-```
-Then switch to the branch that contains the application code.
-
-### 3) Start the app (once code is present)
-Use the stack-specific command for your app:
-- Node: `npm install && npm run dev` or `npm start`
-- Python: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && python app.py`
-- Docker: `docker compose up --build`
-
-### 4) Smoke test
-After startup, hit the local URL (often `http://localhost:3000` or `http://localhost:8000`) and verify:
-- app boots without errors
-- map/animation page loads
-- Strava auth/data flow works (if configured)
 
 ---
 
-## Suggested next step
+## 4) Install and run locally in VS Code
 
-If you want, I can add a production-grade `CONTRIBUTING.md` + `Makefile` (`setup`, `run`, `test`) so local setup and testing are one-command and repeatable.
+From the VS Code terminal:
+
+```bash
+npm install
+npm run dev
+```
+
+Then open:
+
+- `http://localhost:3000`
+
+You should see the SkiAnimator demo page with a canvas route visualization and run list.
+
+---
+
+## 5) Run tests (deterministic fixture-based)
+
+```bash
+npm test
+```
+
+This validates the fixed fixture content so test results are consistent across machines.
+
+---
+
+## 6) Daily workflow in VS Code
+
+```bash
+git pull
+npm run dev
+npm test
+```
+
+When ready to save work:
+
+```bash
+git add .
+git commit -m "feat: your change"
+git push
+```
+
+---
+
+## Project structure
+
+```text
+SkiAnimator/
+  public/
+    app.js
+    index.html
+    styles.css
+  src/
+    data/
+      runs.fixture.json
+    server.js
+  test/
+    server.test.js
+  package.json
+  README.md
+```
+
+---
+
+## Troubleshooting
+
+- **Port already in use**:
+  ```bash
+  PORT=3001 npm run dev
+  ```
+- **Command not found: npm/node**: install Node.js 20+ and restart VS Code.
+- **Blank page**: check terminal logs and browser devtools console.
+
+---
+
+## Next production step (optional)
+
+Once you confirm local flow works, the next upgrade is adding real Strava OAuth + ingestion pipeline while keeping the fixture route for deterministic CI tests.

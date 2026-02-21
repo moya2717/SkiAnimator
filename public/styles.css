@@ -1,0 +1,28 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+main {
+  margin: 2rem auto;
+  max-width: 760px;
+  padding: 0 1rem;
+}
+
+#runCanvas {
+  width: 100%;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: linear-gradient(to bottom, #1e293b, #0b1120);
+}
+
+#runsList {
+  margin-top: 1rem;
+  padding-left: 1.2rem;
+}
