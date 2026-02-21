@@ -29,6 +29,18 @@ Connect your personal Strava account and generate pixel-style ski run animations
 
 > Set your Strava app callback URL to `http://localhost:3000/auth/strava/callback`.
 
+### Configure Strava callback URL (required)
+
+In Strava, open **Settings → My API Application** and set:
+
+- **Authorization Callback Domain**: `localhost`
+- App callback URL used by this app: `http://localhost:3000/auth/strava/callback`
+
+Yes, this makes a difference. If the callback domain/URL or your client secret is wrong, Strava OAuth returns to:
+
+- `/?strava=missing-code` (callback mismatch or interrupted auth), or
+- `/?strava=auth-error&strava_reason=...` (token exchange failed; reason is included).
+
 ## Run tests
 
 ```bash

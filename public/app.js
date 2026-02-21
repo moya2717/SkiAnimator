@@ -237,6 +237,32 @@ async function loadRunTrack(runId) {
   return response.json();
 }
 
+
+function stravaStatusMessage(search) {
+  const params = new URLSearchParams(search);
+  const status = params.get('strava');
+  const reason = params.get('strava_reason');
+
+  if (status === 'connected') {
+    return 'Strava connected successfully.';
+  }
+  if (status === 'not-configured') {
+    return 'Strava is not configured on this server. Add STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET before connecting.';
+  }
+  if (status === 'missing-code') {
+    return 'Strava callback did not include an authorization code. Verify your callback URL exactly matches the one in Strava app settings.';
+  }
+  if (status === 'denied') {
+    return `Strava authorization was denied${reason ? ` (${reason})` : ''}.`;
+  }
+  if (status === 'auth-error') {
+    const reasonSuffix = reason ? ` (${reason})` : '';
+    return `Strava token exchange failed${reasonSuffix}. Check client ID/secret and callback URL in Strava app settings.`;
+  }
+
+  return null;
+}
+
 async function boot() {
   const connectButton = document.querySelector('#connectBtn');
   const disconnectButton = document.querySelector('#disconnectBtn');
@@ -250,9 +276,12 @@ async function boot() {
   }
 
   const status = await loadStatus();
-  connectionStatus.textContent = status.connected
-    ? `Connected to Strava as ${status.athlete?.username ?? 'athlete'}`
-    : 'Using deterministic fixture data. Connect Strava for personal runs.';
+  const callbackMessage = stravaStatusMessage(window.location.search);
+  connectionStatus.textContent = callbackMessage
+    ? callbackMessage
+    : status.connected
+      ? `Connected to Strava as ${status.athlete?.username ?? 'athlete'}`
+      : 'Using deterministic fixture data. Connect Strava for personal runs.';
 
   connectButton.disabled = !status.configured;
   connectButton.addEventListener('click', async () => {

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   buildAuthorizeUrl,
+  exchangeCodeForToken,
   mapActivitiesToAnimationRuns,
   mapActivityStreamsToTrack
 } from '../src/lib/stravaClient.js';
@@ -61,4 +62,31 @@ test('mapActivityStreamsToTrack maps lat/lon, altitude and timestamps', () => {
     elevationM: 2412,
     timestamp: '2026-01-03T08:01:35.000Z'
   });
+});
+
+
+test('exchangeCodeForToken includes redirect URI in token request payload', async () => {
+  const calls = [];
+  const fetchMock = async (url, options) => {
+    calls.push({ url, options });
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return { access_token: 'token-1', refresh_token: 'refresh-1', expires_at: 9999 };
+      }
+    };
+  };
+
+  await exchangeCodeForToken({
+    code: 'auth-code',
+    clientId: '123',
+    clientSecret: 'secret',
+    redirectUri: 'http://localhost:3000/auth/strava/callback',
+    fetchImpl: fetchMock
+  });
+
+  const body = JSON.parse(calls[0].options.body);
+  assert.equal(body.redirect_uri, 'http://localhost:3000/auth/strava/callback');
+  assert.equal(body.code, 'auth-code');
 });

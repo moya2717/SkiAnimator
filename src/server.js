@@ -99,6 +99,17 @@ function parseStravaRunId(runId) {
   return match ? Number(match[1]) : null;
 }
 
+function appendStravaReason(path, reason) {
+  if (!reason) {
+    return path;
+  }
+
+  const safeReason = String(reason).slice(0, 120);
+  const separator = path.includes('?') ? '&' : '?';
+  return `${path}${separator}strava_reason=${encodeURIComponent(safeReason)}`;
+}
+
+
 async function ensureFreshToken(tokenStore, stravaConfig) {
   const token = tokenStore.get();
   if (!token) {
@@ -180,24 +191,34 @@ export function createRequestHandler(
         return;
       }
 
+      const providerError = url.searchParams.get('error');
+      if (providerError) {
+        sendRedirect(response, appendStravaReason('/?strava=denied', providerError));
+        return;
+      }
+
       const code = url.searchParams.get('code');
       if (!code) {
         sendRedirect(response, '/?strava=missing-code');
         return;
       }
 
+      const redirectUri = `${buildAppUrl(request)}/auth/strava/callback`;
+
       try {
         const token = await exchangeCodeForToken({
           code,
           clientId: stravaConfig.clientId,
           clientSecret: stravaConfig.clientSecret,
+          redirectUri,
           fetchImpl: stravaFetch
         });
 
         tokenStore.set(token);
         sendRedirect(response, '/?strava=connected');
-      } catch {
-        sendRedirect(response, '/?strava=auth-error');
+      } catch (error) {
+        const reason = error?.details?.message ?? error?.message;
+        sendRedirect(response, appendStravaReason('/?strava=auth-error', reason));
       }
       return;
     }
