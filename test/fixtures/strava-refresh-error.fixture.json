@@ -1,0 +1,4 @@
+{
+  "message": "invalid refresh token",
+  "errors": [{ "resource": "RefreshToken", "field": "refresh_token", "code": "invalid" }]
+}

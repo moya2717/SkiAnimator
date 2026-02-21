@@ -1,0 +1,9 @@
+{
+  "day-a": [
+    { "id": "run-a1", "name": "Needle Drop", "difficulty": "black", "distanceKm": 1.8 },
+    { "id": "run-a2", "name": "Birch Lane", "difficulty": "green", "distanceKm": 2.4 }
+  ],
+  "day-b": [
+    { "id": "run-b1", "name": "Cold Stream", "difficulty": "blue", "distanceKm": 2.0 }
+  ]
+}

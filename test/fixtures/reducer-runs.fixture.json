@@ -1,0 +1,5 @@
+[
+  { "id": "run-a1", "name": "Needle Drop", "difficulty": "black" },
+  { "id": "run-a2", "name": "Birch Lane", "difficulty": "green" },
+  { "id": "run-b1", "name": "Cold Stream", "difficulty": "blue" }
+]
