@@ -3,6 +3,14 @@ import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createFixtureStore } from './lib/dataStore.js';
+import { refreshStravaToken } from './lib/stravaAuth.js';
+import {
+  buildAuthorizeUrl,
+  exchangeCodeForToken,
+  fetchAthleteActivities,
+  mapActivitiesToAnimationRuns
+} from './lib/stravaClient.js';
+import { createTokenStore } from './lib/tokenStore.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = join(__dirname, '..', 'public');
@@ -18,6 +26,11 @@ const MIME_TYPES = {
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
   response.end(JSON.stringify(payload));
+}
+
+function sendRedirect(response, location) {
+  response.writeHead(302, { Location: location });
+  response.end();
 }
 
 function mapRouteToFile(urlPath) {
@@ -63,22 +76,155 @@ function matchPath(pathname, pattern) {
   }, {});
 }
 
-export function createRequestHandler(store = createFixtureStore({ baseDir: fixtureDir })) {
+function buildAppUrl(request) {
+  const host = request.headers.host ?? 'localhost:3000';
+  return `http://${host}`;
+}
+
+function createStravaConfig(env = process.env) {
+  return {
+    clientId: env.STRAVA_CLIENT_ID,
+    clientSecret: env.STRAVA_CLIENT_SECRET
+  };
+}
+
+function ensureStravaConfigured(config) {
+  return Boolean(config.clientId && config.clientSecret);
+}
+
+async function ensureFreshToken(tokenStore, stravaConfig) {
+  const token = tokenStore.get();
+  if (!token) {
+    return null;
+  }
+
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  if (token.expires_at > nowEpoch + 30) {
+    return token;
+  }
+
+  const refreshed = await refreshStravaToken({
+    refreshToken: token.refresh_token,
+    clientId: stravaConfig.clientId,
+    clientSecret: stravaConfig.clientSecret
+  });
+
+  return tokenStore.set({
+    access_token: refreshed.accessToken,
+    refresh_token: refreshed.refreshToken,
+    expires_at: refreshed.expiresAt,
+    athlete: refreshed.athlete
+  });
+}
+
+export function createRequestHandler(
+  store = createFixtureStore({ baseDir: fixtureDir }),
+  options = {}
+) {
+  const stravaConfig = options.stravaConfig ?? createStravaConfig();
+  const tokenStore = options.tokenStore ?? createTokenStore();
+
   return async function requestHandler(request, response) {
     if (!request.url) {
       sendJson(response, 400, { error: 'Invalid request URL' });
       return;
     }
 
-    const { pathname } = new URL(request.url, 'http://localhost');
+    const url = new URL(request.url, buildAppUrl(request));
+    const { pathname } = url;
 
     if (pathname === '/api/health') {
       sendJson(response, 200, { status: 'ok' });
       return;
     }
 
+    if (pathname === '/api/strava/status') {
+      const token = tokenStore.get();
+      sendJson(response, 200, {
+        configured: ensureStravaConfigured(stravaConfig),
+        connected: Boolean(token),
+        athlete: token?.athlete ?? null
+      });
+      return;
+    }
+
+    if (pathname === '/api/strava/connect') {
+      if (!ensureStravaConfigured(stravaConfig)) {
+        sendJson(response, 400, { error: 'Strava client configuration is missing' });
+        return;
+      }
+
+      const redirectUri = `${buildAppUrl(request)}/auth/strava/callback`;
+      const state = `ski-${Date.now()}`;
+      const authorizeUrl = buildAuthorizeUrl({
+        clientId: stravaConfig.clientId,
+        redirectUri,
+        state
+      });
+
+      sendJson(response, 200, { authorizeUrl });
+      return;
+    }
+
+    if (pathname === '/auth/strava/callback') {
+      if (!ensureStravaConfigured(stravaConfig)) {
+        sendRedirect(response, '/?strava=not-configured');
+        return;
+      }
+
+      const code = url.searchParams.get('code');
+      if (!code) {
+        sendRedirect(response, '/?strava=missing-code');
+        return;
+      }
+
+      try {
+        const token = await exchangeCodeForToken({
+          code,
+          clientId: stravaConfig.clientId,
+          clientSecret: stravaConfig.clientSecret
+        });
+
+        tokenStore.set(token);
+        sendRedirect(response, '/?strava=connected');
+      } catch {
+        sendRedirect(response, '/?strava=auth-error');
+      }
+      return;
+    }
+
+    if (pathname === '/api/strava/logout') {
+      tokenStore.clear();
+      sendJson(response, 200, { ok: true });
+      return;
+    }
+
     if (pathname === '/api/runs') {
-      sendJson(response, 200, await store.getRunsFixture());
+      const fallback = await store.getRunsFixture();
+
+      if (!ensureStravaConfigured(stravaConfig) || !tokenStore.get()) {
+        sendJson(response, 200, fallback);
+        return;
+      }
+
+      try {
+        const token = await ensureFreshToken(tokenStore, stravaConfig);
+        const activities = await fetchAthleteActivities({ accessToken: token.access_token });
+        const runs = mapActivitiesToAnimationRuns(activities);
+
+        if (runs.length === 0) {
+          sendJson(response, 200, fallback);
+          return;
+        }
+
+        sendJson(response, 200, {
+          resort: token.athlete?.username ?? 'Strava Skier',
+          date: new Date().toISOString().slice(0, 10),
+          runs
+        });
+      } catch {
+        sendJson(response, 200, fallback);
+      }
       return;
     }
 
@@ -115,8 +261,8 @@ export function createRequestHandler(store = createFixtureStore({ baseDir: fixtu
   };
 }
 
-export function createAppServer(store) {
-  return createServer(createRequestHandler(store));
+export function createAppServer(store, options) {
+  return createServer(createRequestHandler(store, options));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

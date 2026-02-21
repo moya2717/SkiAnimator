@@ -3,14 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SkiAnimator Demo</title>
+    <title>SkiAnimator</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <main>
-      <h1>SkiAnimator Demo</h1>
+      <h1>SkiAnimator</h1>
+      <p id="connectionStatus"></p>
+      <div class="actions">
+        <button id="connectBtn">Connect Strava</button>
+        <button id="disconnectBtn">Disconnect</button>
+      </div>
       <p id="meta"></p>
-      <canvas id="runCanvas" width="700" height="280"></canvas>
+      <canvas id="runCanvas" width="820" height="280"></canvas>
       <ul id="runsList"></ul>
     </main>
     <script type="module" src="/app.js"></script>

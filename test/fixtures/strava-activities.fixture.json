@@ -1,0 +1,29 @@
+[
+  {
+    "id": 101,
+    "name": "Morning Groomers",
+    "distance": 12450,
+    "moving_time": 3180,
+    "total_elevation_gain": 510,
+    "sport_type": "AlpineSki",
+    "start_date_local": "2026-01-03T08:00:00Z"
+  },
+  {
+    "id": 102,
+    "name": "Steep Trees",
+    "distance": 8420,
+    "moving_time": 2140,
+    "total_elevation_gain": 980,
+    "sport_type": "Snowboard",
+    "start_date_local": "2026-01-03T10:30:00Z"
+  },
+  {
+    "id": 103,
+    "name": "Road Warmup",
+    "distance": 5000,
+    "moving_time": 900,
+    "total_elevation_gain": 40,
+    "sport_type": "Run",
+    "start_date_local": "2026-01-03T06:00:00Z"
+  }
+]

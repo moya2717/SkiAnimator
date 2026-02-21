@@ -5,24 +5,45 @@
 
 body {
   margin: 0;
-  background: #0f172a;
+  background: radial-gradient(circle at top, #111f49, #030712 70%);
   color: #e2e8f0;
 }
 
 main {
   margin: 2rem auto;
-  max-width: 760px;
-  padding: 0 1rem;
+  max-width: 860px;
+  padding: 0 1rem 2rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+button {
+  border: 1px solid #475569;
+  background: #111827;
+  color: #e2e8f0;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 #runCanvas {
   width: 100%;
   border: 1px solid #334155;
   border-radius: 10px;
-  background: linear-gradient(to bottom, #1e293b, #0b1120);
+  image-rendering: pixelated;
 }
 
 #runsList {
   margin-top: 1rem;
   padding-left: 1.2rem;
+  line-height: 1.7;
 }
