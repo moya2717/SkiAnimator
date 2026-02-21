@@ -69,7 +69,7 @@ function mapActivityBase(activity) {
     distanceKm: Number(((activity.distance ?? 0) / 1000).toFixed(2)),
     verticalM: Math.round(activity.total_elevation_gain ?? 0),
     durationMinutes: Math.max(1, Math.round((activity.moving_time ?? 0) / 60)),
-    startDateLocal: activity.start_date_local,
+    startDateLocal: activity.start_date_local ?? activity.start_date ?? null,
     source: 'strava'
   };
 }

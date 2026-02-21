@@ -452,3 +452,40 @@ test('GET /api/alpine/runs returns runs for selected day', async () => {
     { stravaFetch }
   );
 });
+
+
+test('GET /api/alpine/years uses start_date fallback when start_date_local is missing', async () => {
+  const stravaFetch = async () => ({
+    ok: true,
+    status: 200,
+    async json() {
+      return [
+        {
+          id: 990,
+          name: 'Fallback Timestamp Alpine',
+          distance: 6000,
+          moving_time: 1800,
+          total_elevation_gain: 500,
+          sport_type: 'AlpineSki',
+          start_date: '2026-01-05T08:00:00Z'
+        }
+      ];
+    }
+  });
+
+  await withConfiguredServer(
+    async (baseUrl, tokenStore) => {
+      tokenStore.set({
+        access_token: 'token-1',
+        refresh_token: 'refresh-1',
+        expires_at: 9999999999,
+        athlete: { username: 'ski-user' }
+      });
+
+      const { status, body } = await requestJson(baseUrl, '/api/alpine/years');
+      assert.equal(status, 200);
+      assert.deepEqual(body.years, ['2026']);
+    },
+    { stravaFetch }
+  );
+});
