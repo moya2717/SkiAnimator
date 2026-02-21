@@ -13,8 +13,16 @@ function buildQuery(params) {
 }
 
 function normalizeSportType(activity) {
-  return activity.sport_type ?? activity.type ?? '';
+  return String(activity.sport_type ?? activity.type ?? '').trim();
 }
+
+const WINTER_SPORT_TYPES = new Set([
+  'alpineski',
+  'backcountryski',
+  'nordicski',
+  'snowboard',
+  'ski'
+]);
 
 function isoTimestampFromOffset(baseTimestamp, secondsOffset) {
   const baseMs = Date.parse(baseTimestamp);
@@ -25,8 +33,8 @@ function isoTimestampFromOffset(baseTimestamp, secondsOffset) {
 }
 
 export function isWinterSport(activity) {
-  const sportType = normalizeSportType(activity);
-  return ['AlpineSki', 'BackcountrySki', 'NordicSki', 'Snowboard'].includes(sportType);
+  const sportType = normalizeSportType(activity).toLowerCase();
+  return WINTER_SPORT_TYPES.has(sportType);
 }
 
 function activityDifficulty(activity) {
@@ -89,8 +97,8 @@ export async function exchangeCodeForToken({ code, clientId, clientSecret, redir
   return payload;
 }
 
-export async function fetchAthleteActivities({ accessToken, perPage = 30, fetchImpl = fetch }) {
-  const query = buildQuery({ per_page: perPage, page: 1 });
+export async function fetchAthleteActivities({ accessToken, perPage = 30, page = 1, fetchImpl = fetch }) {
+  const query = buildQuery({ per_page: perPage, page });
   const response = await fetchImpl(`${STRAVA_API_BASE}/athlete/activities?${query.toString()}`, {
     headers: { Authorization: `Bearer ${accessToken}` }
   });

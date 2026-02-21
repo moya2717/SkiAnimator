@@ -17,6 +17,8 @@ import { createTokenStore } from './lib/tokenStore.js';
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = join(__dirname, '..', 'public');
 const fixtureDir = process.env.FIXTURE_DIR ?? join(__dirname, 'data');
+const STRAVA_DEFAULT_PER_PAGE = 100;
+const STRAVA_MAX_PAGES = 3;
 
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -135,6 +137,30 @@ async function ensureFreshToken(tokenStore, stravaConfig) {
   });
 }
 
+async function fetchWinterActivities(accessToken, stravaFetch, perPage) {
+  const allActivities = [];
+
+  for (let page = 1; page <= STRAVA_MAX_PAGES; page += 1) {
+    const activities = await fetchAthleteActivities({
+      accessToken,
+      perPage,
+      page,
+      fetchImpl: stravaFetch
+    });
+
+    if (activities.length === 0) {
+      break;
+    }
+
+    allActivities.push(...activities);
+    if (activities.length < perPage) {
+      break;
+    }
+  }
+
+  return allActivities;
+}
+
 export function createRequestHandler(
   store = createFixtureStore({ baseDir: fixtureDir }),
   options = {}
@@ -142,6 +168,7 @@ export function createRequestHandler(
   const stravaConfig = options.stravaConfig ?? createStravaConfig();
   const tokenStore = options.tokenStore ?? createTokenStore();
   const stravaFetch = options.stravaFetch ?? fetch;
+  const stravaPageSize = options.stravaPageSize ?? STRAVA_DEFAULT_PER_PAGE;
 
   return async function requestHandler(request, response) {
     if (!request.url) {
@@ -230,20 +257,23 @@ export function createRequestHandler(
     }
 
     if (pathname === '/api/runs') {
-      const fallback = await store.getRunsFixture();
+      async function sendFallbackRuns() {
+        const fallback = await store.getRunsFixture();
+        sendJson(response, 200, fallback);
+      }
 
       if (!ensureStravaConfigured(stravaConfig) || !tokenStore.get()) {
-        sendJson(response, 200, fallback);
+        await sendFallbackRuns();
         return;
       }
 
       try {
         const token = await ensureFreshToken(tokenStore, stravaConfig);
-        const activities = await fetchAthleteActivities({ accessToken: token.access_token, fetchImpl: stravaFetch });
+        const activities = await fetchWinterActivities(token.access_token, stravaFetch, stravaPageSize);
         const runs = mapActivitiesToAnimationRuns(activities);
 
         if (runs.length === 0) {
-          sendJson(response, 200, fallback);
+          await sendFallbackRuns();
           return;
         }
 
@@ -253,7 +283,7 @@ export function createRequestHandler(
           runs
         });
       } catch {
-        sendJson(response, 200, fallback);
+        await sendFallbackRuns();
       }
       return;
     }
@@ -284,11 +314,7 @@ export function createRequestHandler(
           const activityId = parseStravaRunId(runId);
           if (activityId) {
             const token = await ensureFreshToken(tokenStore, stravaConfig);
-            const activities = await fetchAthleteActivities({
-              accessToken: token.access_token,
-              perPage: 100,
-              fetchImpl: stravaFetch
-            });
+            const activities = await fetchWinterActivities(token.access_token, stravaFetch, stravaPageSize);
             const activity = activities.find((item) => item.id === activityId);
 
             if (activity) {
