@@ -121,8 +121,15 @@ export async function exchangeCodeForToken({ code, clientId, clientSecret, redir
   return payload;
 }
 
-export async function fetchAthleteActivities({ accessToken, perPage = 30, page = 1, fetchImpl = fetch }) {
-  const query = buildQuery({ per_page: perPage, page });
+export async function fetchAthleteActivities({
+  accessToken,
+  perPage = 30,
+  page = 1,
+  before,
+  after,
+  fetchImpl = fetch
+}) {
+  const query = buildQuery({ per_page: perPage, page, before, after });
   const response = await fetchImpl(`${STRAVA_API_BASE}/athlete/activities?${query.toString()}`, {
     headers: { Authorization: `Bearer ${accessToken}` }
   });
@@ -130,6 +137,23 @@ export async function fetchAthleteActivities({ accessToken, perPage = 30, page =
   const payload = await response.json();
   if (!response.ok) {
     const error = new Error(payload.message ?? 'Failed to fetch Strava activities');
+    error.statusCode = response.status;
+    error.details = payload;
+    throw error;
+  }
+
+  return payload;
+}
+
+
+export async function fetchActivityById({ activityId, accessToken, fetchImpl = fetch }) {
+  const response = await fetchImpl(`${STRAVA_API_BASE}/activities/${activityId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    const error = new Error(payload.message ?? 'Failed to fetch Strava activity');
     error.statusCode = response.status;
     error.details = payload;
     throw error;

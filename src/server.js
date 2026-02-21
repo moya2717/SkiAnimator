@@ -8,6 +8,7 @@ import {
   buildAuthorizeUrl,
   exchangeCodeForToken,
   fetchAthleteActivities,
+  fetchActivityById,
   fetchActivityStreams,
   mapActivitiesToAnimationRuns,
   mapActivitiesToAlpineActivities,
@@ -19,7 +20,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = join(__dirname, '..', 'public');
 const fixtureDir = process.env.FIXTURE_DIR ?? join(__dirname, 'data');
 const STRAVA_DEFAULT_PER_PAGE = 100;
-const STRAVA_MAX_PAGES = 3;
+const STRAVA_MAX_PAGES = 30;
 
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -138,14 +139,36 @@ async function ensureFreshToken(tokenStore, stravaConfig) {
   });
 }
 
-async function fetchAthleteActivityPages(accessToken, stravaFetch, perPage) {
-  const allActivities = [];
+function parseYearParam(year) {
+  return /^\d{4}$/.test(year ?? '') ? year : null;
+}
 
-  for (let page = 1; page <= STRAVA_MAX_PAGES; page += 1) {
+function parseDayParam(day) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(day ?? '') ? day : null;
+}
+
+function buildEpochRange({ year, day }) {
+  const startIso = day ? `${day}T00:00:00Z` : `${year}-01-01T00:00:00Z`;
+  const endIso = day
+    ? `${day}T23:59:59.999Z`
+    : `${Number(year) + 1}-01-01T00:00:00Z`;
+  return {
+    after: Math.floor(Date.parse(startIso) / 1000),
+    before: Math.floor(Date.parse(endIso) / 1000)
+  };
+}
+
+async function fetchAthleteActivityPages(accessToken, stravaFetch, perPage, options = {}) {
+  const allActivities = [];
+  const maxPages = options.maxPages ?? STRAVA_MAX_PAGES;
+
+  for (let page = 1; page <= maxPages; page += 1) {
     const activities = await fetchAthleteActivities({
       accessToken,
       perPage,
       page,
+      before: options.before,
+      after: options.after,
       fetchImpl: stravaFetch
     });
 
@@ -257,6 +280,100 @@ export function createRequestHandler(
       return;
     }
 
+    if (pathname === '/api/alpine/years') {
+      async function sendFallbackYears() {
+        const fallback = await store.getRunsFixture();
+        sendJson(response, 200, { years: [String(fallback.date).slice(0, 4)], mode: 'fixture' });
+      }
+
+      if (!ensureStravaConfigured(stravaConfig) || !tokenStore.get()) {
+        await sendFallbackYears();
+        return;
+      }
+
+      try {
+        const token = await ensureFreshToken(tokenStore, stravaConfig);
+        const activities = await fetchAthleteActivityPages(token.access_token, stravaFetch, stravaPageSize);
+        const years = [...new Set(mapActivitiesToAlpineActivities(activities)
+          .map((activity) => String(activity.startDateLocal).slice(0, 4))
+          .filter(Boolean))].sort((a, b) => b.localeCompare(a));
+        sendJson(response, 200, { years, mode: 'strava' });
+      } catch {
+        await sendFallbackYears();
+      }
+      return;
+    }
+
+    if (pathname === '/api/alpine/days') {
+      const year = parseYearParam(url.searchParams.get('year'));
+      if (!year) {
+        sendJson(response, 400, { error: 'Valid year is required' });
+        return;
+      }
+
+      async function sendFallbackDays() {
+        const fallback = await store.getRunsFixture();
+        const day = String(fallback.date).slice(0, 10);
+        sendJson(response, 200, { days: [{ day, count: fallback.runs.length }], mode: 'fixture' });
+      }
+
+      if (!ensureStravaConfigured(stravaConfig) || !tokenStore.get()) {
+        await sendFallbackDays();
+        return;
+      }
+
+      try {
+        const token = await ensureFreshToken(tokenStore, stravaConfig);
+        const range = buildEpochRange({ year });
+        const activities = await fetchAthleteActivityPages(token.access_token, stravaFetch, stravaPageSize, range);
+        const alpine = mapActivitiesToAlpineActivities(activities);
+        const grouped = alpine.reduce((acc, activity) => {
+          const day = String(activity.startDateLocal).slice(0, 10);
+          if (!day) return acc;
+          acc.set(day, (acc.get(day) ?? 0) + 1);
+          return acc;
+        }, new Map());
+        const days = [...grouped.entries()]
+          .sort((a, b) => b[0].localeCompare(a[0]))
+          .map(([day, count]) => ({ day, count }));
+        sendJson(response, 200, { days, mode: 'strava' });
+      } catch {
+        await sendFallbackDays();
+      }
+      return;
+    }
+
+    if (pathname === '/api/alpine/runs') {
+      const day = parseDayParam(url.searchParams.get('day'));
+      if (!day) {
+        sendJson(response, 400, { error: 'Valid day is required' });
+        return;
+      }
+
+      async function sendFallbackRunsForDay() {
+        const fallback = await store.getRunsFixture();
+        sendJson(response, 200, { runs: fallback.runs, mode: 'fixture' });
+      }
+
+      if (!ensureStravaConfigured(stravaConfig) || !tokenStore.get()) {
+        await sendFallbackRunsForDay();
+        return;
+      }
+
+      try {
+        const token = await ensureFreshToken(tokenStore, stravaConfig);
+        const range = buildEpochRange({ day });
+        const activities = await fetchAthleteActivityPages(token.access_token, stravaFetch, stravaPageSize, range);
+        const runs = mapActivitiesToAnimationRuns(activities).sort((a, b) => {
+          return String(b.startDateLocal).localeCompare(String(a.startDateLocal));
+        });
+        sendJson(response, 200, { runs, mode: 'strava' });
+      } catch {
+        await sendFallbackRunsForDay();
+      }
+      return;
+    }
+
     if (pathname === '/api/runs') {
       async function sendFallbackRuns() {
         const fallback = await store.getRunsFixture();
@@ -347,20 +464,21 @@ export function createRequestHandler(
           const activityId = parseStravaRunId(runId);
           if (activityId) {
             const token = await ensureFreshToken(tokenStore, stravaConfig);
-            const activities = await fetchAthleteActivityPages(token.access_token, stravaFetch, stravaPageSize);
-            const activity = activities.find((item) => item.id === activityId);
+            const activity = await fetchActivityById({
+              activityId,
+              accessToken: token.access_token,
+              fetchImpl: stravaFetch
+            });
 
-            if (activity) {
-              const streams = await fetchActivityStreams({
-                activityId,
-                accessToken: token.access_token,
-                fetchImpl: stravaFetch
-              });
-              const track = mapActivityStreamsToTrack(activity, streams);
-              if (track) {
-                sendJson(response, 200, track);
-                return;
-              }
+            const streams = await fetchActivityStreams({
+              activityId,
+              accessToken: token.access_token,
+              fetchImpl: stravaFetch
+            });
+            const track = mapActivityStreamsToTrack(activity, streams);
+            if (track) {
+              sendJson(response, 200, track);
+              return;
             }
           }
         } catch {

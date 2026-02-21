@@ -2,8 +2,6 @@ import { chooseZoomForBounds, computeBounds, latLonToWorldPixels, tileRangeForBo
 import {
   appReducer,
   initialState,
-  selectAvailableDays,
-  selectAvailableYears,
   selectVisibleActivities,
   selectVisibleRuns
 } from './state.js';
@@ -253,22 +251,42 @@ async function boot() {
     const visibleActivities = selectVisibleActivities(state);
     renderRuns(runsList, visibleRuns, state.selectedRunId);
     renderActivities(activitiesList, visibleActivities);
-    syncSelectOptions(yearFilter, selectAvailableYears(state), 'All years');
-    yearFilter.value = state.yearFilter;
-    syncSelectOptions(dayFilter, selectAvailableDays(state), 'All days');
-    dayFilter.value = state.dayFilter;
     const primaryRun = visibleRuns.find((run) => run.id === state.selectedRunId) ?? visibleRuns[0];
     if (primaryRun) loadJson(`/api/runs/${encodeURIComponent(primaryRun.id)}/track`).then((track) => animateRunTrack(canvas, primaryRun, track)).catch(() => animateFallbackRuns(canvas, visibleRuns.slice(0, 4)));
     else animateFallbackRuns(canvas, state.runs.slice(0, 4));
   };
 
-  const status = await loadJson('/api/strava/status');
-  const runsPayload = await loadJson('/api/runs');
-  const activitiesPayload = await loadJson('/api/activities');
+  async function loadRunsForDay(day) {
+    if (!day || day === 'all') {
+      dispatch({ type: 'dashboard/set', payload: { runs: [], activities: [] } });
+      return;
+    }
 
-  meta.textContent = `${runsPayload.resort ?? 'Dashboard'} • ${runsPayload.date ?? new Date().toISOString().slice(0, 10)}`;
+    const payload = await loadJson(`/api/alpine/runs?day=${encodeURIComponent(day)}`);
+    dispatch({ type: 'dashboard/set', payload: { runs: payload.runs ?? [], activities: payload.runs ?? [] } });
+  }
+
+  async function loadDaysForYear(year) {
+    if (!year || year === 'all') {
+      syncSelectOptions(dayFilter, [], 'All days');
+      await loadRunsForDay('all');
+      return;
+    }
+
+    const payload = await loadJson(`/api/alpine/days?year=${encodeURIComponent(year)}`);
+    const days = (payload.days ?? []).map((item) => item.day);
+    syncSelectOptions(dayFilter, days, 'All days');
+    const dayToLoad = days[0] ?? 'all';
+    dayFilter.value = dayToLoad;
+    await loadRunsForDay(dayToLoad);
+  }
+
+  const status = await loadJson('/api/strava/status');
+  const yearsPayload = await loadJson('/api/alpine/years');
+
+  meta.textContent = `Dashboard • ${new Date().toISOString().slice(0, 10)}`;
   const callbackMessage = stravaStatusMessage(window.location.search);
-  connectionStatus.textContent = callbackMessage ?? (status.connected ? `Connected as ${status.athlete?.username ?? 'athlete'} • ${activitiesPayload.activities.length} alpine ski activities loaded` : 'Using deterministic fixture data. Connect Strava for your alpine ski activities.');
+  connectionStatus.textContent = callbackMessage ?? (status.connected ? `Connected as ${status.athlete?.username ?? 'athlete'} • ${yearsPayload.years.length} alpine years found` : 'Using deterministic fixture data. Connect Strava for your alpine ski activities.');
 
   connectButton.disabled = !status.configured;
   connectButton.addEventListener('click', async () => {
@@ -281,9 +299,13 @@ async function boot() {
   });
 
   searchInput.addEventListener('input', () => dispatch({ type: 'search/set', payload: searchInput.value }));
-  yearFilter.addEventListener('change', () => dispatch({ type: 'year/set', payload: yearFilter.value }));
-  dayFilter.addEventListener('change', () => dispatch({ type: 'day/set', payload: dayFilter.value }));
   difficultyFilter.addEventListener('change', () => dispatch({ type: 'difficulty/set', payload: difficultyFilter.value }));
+  yearFilter.addEventListener('change', async () => {
+    await loadDaysForYear(yearFilter.value);
+  });
+  dayFilter.addEventListener('change', async () => {
+    await loadRunsForDay(dayFilter.value);
+  });
   runsList.addEventListener('click', (event) => {
     const item = event.target instanceof HTMLElement ? event.target.closest('[data-run-id]') : null;
     if (item instanceof HTMLElement && item.dataset.runId) {
@@ -291,7 +313,11 @@ async function boot() {
     }
   });
 
-  dispatch({ type: 'dashboard/set', payload: { runs: runsPayload.runs, activities: activitiesPayload.activities } });
+  const years = yearsPayload.years ?? [];
+  syncSelectOptions(yearFilter, years, 'All years');
+  yearFilter.value = years[0] ?? 'all';
+  await loadDaysForYear(yearFilter.value);
 }
+
 
 boot();

@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import {
   buildAuthorizeUrl,
   exchangeCodeForToken,
+  fetchAthleteActivities,
   mapActivitiesToAnimationRuns,
   mapActivityStreamsToTrack
 } from '../src/lib/stravaClient.js';
@@ -114,4 +115,34 @@ test('exchangeCodeForToken includes redirect URI in token request payload', asyn
   const body = JSON.parse(calls[0].options.body);
   assert.equal(body.redirect_uri, 'http://localhost:3000/auth/strava/callback');
   assert.equal(body.code, 'auth-code');
+});
+
+
+test('fetchAthleteActivities forwards optional before/after range query', async () => {
+  const calls = [];
+  const fetchMock = async (url) => {
+    calls.push(url);
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return [];
+      }
+    };
+  };
+
+  await fetchAthleteActivities({
+    accessToken: 'token-1',
+    perPage: 50,
+    page: 2,
+    before: 200,
+    after: 100,
+    fetchImpl: fetchMock
+  });
+
+  const url = new URL(calls[0]);
+  assert.equal(url.searchParams.get('per_page'), '50');
+  assert.equal(url.searchParams.get('page'), '2');
+  assert.equal(url.searchParams.get('before'), '200');
+  assert.equal(url.searchParams.get('after'), '100');
 });

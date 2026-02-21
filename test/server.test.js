@@ -183,17 +183,15 @@ test('GET /api/runs paginates Strava activities and includes only AlpineSki entr
 
 test('GET /api/runs/:id/track returns Strava stream track for connected user', async () => {
   const responses = [
-    [
-      {
-        id: 101,
-        name: 'Morning Groomers',
-        distance: 12450,
-        moving_time: 3180,
-        total_elevation_gain: 510,
-        sport_type: 'AlpineSki',
-        start_date: '2026-01-03T08:00:00Z'
-      }
-    ],
+    {
+      id: 101,
+      name: 'Morning Groomers',
+      distance: 12450,
+      moving_time: 3180,
+      total_elevation_gain: 510,
+      sport_type: 'AlpineSki',
+      start_date: '2026-01-03T08:00:00Z'
+    },
     {
       latlng: { data: [[46.1, 7.2], [46.09, 7.21]] },
       altitude: { data: [2488.8, 2412.2] },
@@ -345,6 +343,96 @@ test('GET /api/activities returns only AlpineSki activities', async () => {
       assert.equal(body.activities.length, 1);
       assert.equal(body.activities[0].sportType, 'AlpineSki');
       assert.equal(body.activities[0].id, 'strava-702');
+    },
+    { stravaFetch }
+  );
+});
+
+
+test('GET /api/alpine/days loads all paginated alpine days for selected year', async () => {
+  const responses = [
+    [
+      {
+        id: 801,
+        name: 'Day One',
+        distance: 7000,
+        moving_time: 2100,
+        total_elevation_gain: 500,
+        sport_type: 'AlpineSki',
+        start_date_local: '2026-02-01T09:00:00Z'
+      }
+    ],
+    [
+      {
+        id: 802,
+        name: 'Day Two',
+        distance: 6800,
+        moving_time: 2050,
+        total_elevation_gain: 480,
+        sport_type: 'AlpineSki',
+        start_date_local: '2026-01-31T09:00:00Z'
+      }
+    ],
+    []
+  ];
+
+  const stravaFetch = async () => ({
+    ok: true,
+    status: 200,
+    async json() {
+      return responses.shift() ?? [];
+    }
+  });
+
+  await withConfiguredServer(
+    async (baseUrl, tokenStore) => {
+      tokenStore.set({
+        access_token: 'token-1',
+        refresh_token: 'refresh-1',
+        expires_at: 9999999999,
+        athlete: { username: 'ski-user' }
+      });
+
+      const { status, body } = await requestJson(baseUrl, '/api/alpine/days?year=2026');
+      assert.equal(status, 200);
+      assert.deepEqual(body.days.map((item) => item.day), ['2026-02-01', '2026-01-31']);
+    },
+    { stravaFetch, stravaPageSize: 1 }
+  );
+});
+
+test('GET /api/alpine/runs returns runs for selected day', async () => {
+  const stravaFetch = async () => ({
+    ok: true,
+    status: 200,
+    async json() {
+      return [
+        {
+          id: 901,
+          name: 'Lunch Laps',
+          distance: 5400,
+          moving_time: 1700,
+          total_elevation_gain: 620,
+          sport_type: 'AlpineSki',
+          start_date_local: '2026-02-03T12:00:00Z'
+        }
+      ];
+    }
+  });
+
+  await withConfiguredServer(
+    async (baseUrl, tokenStore) => {
+      tokenStore.set({
+        access_token: 'token-1',
+        refresh_token: 'refresh-1',
+        expires_at: 9999999999,
+        athlete: { username: 'ski-user' }
+      });
+
+      const { status, body } = await requestJson(baseUrl, '/api/alpine/runs?day=2026-02-03');
+      assert.equal(status, 200);
+      assert.equal(body.runs.length, 1);
+      assert.equal(body.runs[0].id, 'strava-901');
     },
     { stravaFetch }
   );
