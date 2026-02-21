@@ -1,0 +1,23 @@
+{
+  "run-100": {
+    "runId": "run-100",
+    "points": [
+      { "lat": 46.101, "lon": 7.201, "elevationM": 2480, "timestamp": "2026-01-18T09:00:00Z" },
+      { "lat": 46.098, "lon": 7.208, "elevationM": 2340, "timestamp": "2026-01-18T09:02:30Z" }
+    ]
+  },
+  "run-101": {
+    "runId": "run-101",
+    "points": [
+      { "lat": 46.094, "lon": 7.215, "elevationM": 2200, "timestamp": "2026-01-18T09:10:00Z" },
+      { "lat": 46.091, "lon": 7.219, "elevationM": 2075, "timestamp": "2026-01-18T09:12:00Z" }
+    ]
+  },
+  "run-200": {
+    "runId": "run-200",
+    "points": [
+      { "lat": 46.225, "lon": 7.302, "elevationM": 2580, "timestamp": "2026-01-19T10:00:00Z" },
+      { "lat": 46.221, "lon": 7.309, "elevationM": 2440, "timestamp": "2026-01-19T10:03:00Z" }
+    ]
+  }
+}

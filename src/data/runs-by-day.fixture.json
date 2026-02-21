@@ -1,0 +1,9 @@
+{
+  "day-2026-01-18": [
+    { "id": "run-100", "name": "Summit Line", "difficulty": "black", "distanceKm": 3.2 },
+    { "id": "run-101", "name": "Pine Traverse", "difficulty": "blue", "distanceKm": 2.1 }
+  ],
+  "day-2026-01-19": [
+    { "id": "run-200", "name": "Glacier Glide", "difficulty": "blue", "distanceKm": 2.9 }
+  ]
+}

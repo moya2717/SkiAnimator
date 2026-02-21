@@ -1,11 +1,12 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createFixtureStore } from './lib/dataStore.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = join(__dirname, '..', 'public');
-const fixturePath = join(__dirname, 'data', 'runs.fixture.json');
+const fixtureDir = process.env.FIXTURE_DIR ?? join(__dirname, 'data');
 
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -15,15 +16,8 @@ const MIME_TYPES = {
 };
 
 function sendJson(response, statusCode, payload) {
-  response.writeHead(statusCode, {
-    'Content-Type': 'application/json; charset=utf-8'
-  });
+  response.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
   response.end(JSON.stringify(payload));
-}
-
-async function readRunsFixture() {
-  const file = await readFile(fixturePath, 'utf8');
-  return JSON.parse(file);
 }
 
 function mapRouteToFile(urlPath) {
@@ -37,8 +31,7 @@ function mapRouteToFile(urlPath) {
 
 async function serveStaticFile(urlPath, response) {
   const filePath = mapRouteToFile(urlPath);
-  const extension = extname(filePath);
-  const contentType = MIME_TYPES[extension] ?? 'application/octet-stream';
+  const contentType = MIME_TYPES[extname(filePath)] ?? 'application/octet-stream';
 
   try {
     const content = await readFile(filePath);
@@ -49,31 +42,87 @@ async function serveStaticFile(urlPath, response) {
   }
 }
 
-async function requestHandler(request, response) {
-  if (!request.url) {
-    sendJson(response, 400, { error: 'Invalid request URL' });
-    return;
+function matchPath(pathname, pattern) {
+  const pathParts = pathname.split('/').filter(Boolean);
+  const patternParts = pattern.split('/').filter(Boolean);
+
+  if (pathParts.length !== patternParts.length) {
+    return null;
   }
 
-  const { pathname } = new URL(request.url, 'http://localhost');
+  return patternParts.reduce((params, part, index) => {
+    if (params === null) {
+      return null;
+    }
 
-  if (pathname === '/api/health') {
-    sendJson(response, 200, { status: 'ok' });
-    return;
-  }
+    if (part.startsWith(':')) {
+      return { ...params, [part.slice(1)]: pathParts[index] };
+    }
 
-  if (pathname === '/api/runs') {
-    const runs = await readRunsFixture();
-    sendJson(response, 200, runs);
-    return;
-  }
-
-  await serveStaticFile(pathname, response);
+    return pathParts[index] === part ? params : null;
+  }, {});
 }
 
-const port = Number(process.env.PORT ?? 3000);
-const server = createServer(requestHandler);
+export function createRequestHandler(store = createFixtureStore({ baseDir: fixtureDir })) {
+  return async function requestHandler(request, response) {
+    if (!request.url) {
+      sendJson(response, 400, { error: 'Invalid request URL' });
+      return;
+    }
 
-server.listen(port, () => {
-  console.log(`SkiAnimator running at http://localhost:${port}`);
-});
+    const { pathname } = new URL(request.url, 'http://localhost');
+
+    if (pathname === '/api/health') {
+      sendJson(response, 200, { status: 'ok' });
+      return;
+    }
+
+    if (pathname === '/api/runs') {
+      sendJson(response, 200, await store.getRunsFixture());
+      return;
+    }
+
+    if (pathname === '/api/ski-days') {
+      sendJson(response, 200, await store.getSkiDays());
+      return;
+    }
+
+    const skiDayMatch = matchPath(pathname, '/api/ski-days/:id/runs');
+    if (skiDayMatch) {
+      const runs = await store.getRunsByDay(skiDayMatch.id);
+      if (!runs) {
+        sendJson(response, 404, { error: 'Ski day not found' });
+        return;
+      }
+
+      sendJson(response, 200, runs);
+      return;
+    }
+
+    const runTrackMatch = matchPath(pathname, '/api/runs/:id/track');
+    if (runTrackMatch) {
+      const track = await store.getRunTrack(runTrackMatch.id);
+      if (!track) {
+        sendJson(response, 404, { error: 'Run track not found' });
+        return;
+      }
+
+      sendJson(response, 200, track);
+      return;
+    }
+
+    await serveStaticFile(pathname, response);
+  };
+}
+
+export function createAppServer(store) {
+  return createServer(createRequestHandler(store));
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const port = Number(process.env.PORT ?? 3000);
+  const server = createAppServer();
+  server.listen(port, () => {
+    console.log(`SkiAnimator running at http://localhost:${port}`);
+  });
+}
