@@ -4,25 +4,25 @@ import { readFile } from 'node:fs/promises';
 import {
   buildAuthorizeUrl,
   exchangeCodeForToken,
+  fetchAthleteActivities,
   mapActivitiesToAnimationRuns,
   mapActivityStreamsToTrack
 } from '../src/lib/stravaClient.js';
 
 const activitiesFixturePath = new URL('./fixtures/strava-activities.fixture.json', import.meta.url);
 
-test('mapActivitiesToAnimationRuns keeps only ski activities and maps fields deterministically', async () => {
+test('mapActivitiesToAnimationRuns keeps only AlpineSki activities and maps fields deterministically', async () => {
   const activities = JSON.parse(await readFile(activitiesFixturePath, 'utf8'));
   const runs = mapActivitiesToAnimationRuns(activities);
 
-  assert.equal(runs.length, 2);
-  assert.deepEqual(runs.map((run) => run.id), ['strava-101', 'strava-102']);
+  assert.equal(runs.length, 1);
+  assert.deepEqual(runs.map((run) => run.id), ['strava-101']);
   assert.equal(runs[0].distanceKm, 12.45);
   assert.equal(runs[0].difficulty, 'blue');
-  assert.equal(runs[1].difficulty, 'black');
 });
 
 
-test('mapActivitiesToAnimationRuns accepts legacy ski types with varied casing', () => {
+test('mapActivitiesToAnimationRuns rejects non-AlpineSki activities', () => {
   const runs = mapActivitiesToAnimationRuns([
     {
       id: 201,
@@ -44,7 +44,7 @@ test('mapActivitiesToAnimationRuns accepts legacy ski types with varied casing',
     }
   ]);
 
-  assert.deepEqual(runs.map((run) => run.id), ['strava-201', 'strava-202']);
+  assert.deepEqual(runs, []);
 });
 
 test('buildAuthorizeUrl includes required oauth fields', () => {
@@ -115,4 +115,34 @@ test('exchangeCodeForToken includes redirect URI in token request payload', asyn
   const body = JSON.parse(calls[0].options.body);
   assert.equal(body.redirect_uri, 'http://localhost:3000/auth/strava/callback');
   assert.equal(body.code, 'auth-code');
+});
+
+
+test('fetchAthleteActivities forwards optional before/after range query', async () => {
+  const calls = [];
+  const fetchMock = async (url) => {
+    calls.push(url);
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return [];
+      }
+    };
+  };
+
+  await fetchAthleteActivities({
+    accessToken: 'token-1',
+    perPage: 50,
+    page: 2,
+    before: 200,
+    after: 100,
+    fetchImpl: fetchMock
+  });
+
+  const url = new URL(calls[0]);
+  assert.equal(url.searchParams.get('per_page'), '50');
+  assert.equal(url.searchParams.get('page'), '2');
+  assert.equal(url.searchParams.get('before'), '200');
+  assert.equal(url.searchParams.get('after'), '100');
 });
