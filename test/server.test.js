@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createFixtureStore } from '../src/lib/dataStore.js';
 import { createAppServer } from '../src/server.js';
+import { createTokenStore } from '../src/lib/tokenStore.js';
 
 const rootFixturePath = new URL('../src/data/runs.fixture.json', import.meta.url);
 const localFixtureDir = new URL('./fixtures/', import.meta.url);
@@ -15,6 +16,23 @@ async function withServer(run) {
 
   try {
     await run(`http://127.0.0.1:${port}`);
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  }
+}
+
+async function withConfiguredServer(run) {
+  const store = createFixtureStore({ baseDir: localFixtureDir.pathname });
+  const tokenStore = createTokenStore();
+  const server = createAppServer(store, {
+    stravaConfig: { clientId: 'id-1', clientSecret: 'secret-1' },
+    tokenStore
+  });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  try {
+    await run(`http://127.0.0.1:${port}`, tokenStore);
   } finally {
     await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
   }
@@ -66,5 +84,31 @@ test('GET /api/runs/:id/track returns deterministic track and 404 for unknown ru
     const missing = await requestJson(baseUrl, '/api/runs/run-z9/track');
     assert.equal(missing.status, 404);
     assert.equal(missing.body.error, 'Run track not found');
+  });
+});
+
+test('GET /api/strava/status returns disconnected state when not configured', async () => {
+  await withServer(async (baseUrl) => {
+    const { status, body } = await requestJson(baseUrl, '/api/strava/status');
+    assert.equal(status, 200);
+    assert.equal(body.configured, false);
+    assert.equal(body.connected, false);
+  });
+});
+
+test('GET /api/strava/status returns connected state when token exists', async () => {
+  await withConfiguredServer(async (baseUrl, tokenStore) => {
+    tokenStore.set({
+      access_token: 'token-1',
+      refresh_token: 'refresh-1',
+      expires_at: 9999999999,
+      athlete: { username: 'ski-user' }
+    });
+
+    const { status, body } = await requestJson(baseUrl, '/api/strava/status');
+    assert.equal(status, 200);
+    assert.equal(body.configured, true);
+    assert.equal(body.connected, true);
+    assert.equal(body.athlete.username, 'ski-user');
   });
 });
