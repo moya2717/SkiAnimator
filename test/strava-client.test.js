@@ -22,7 +22,7 @@ test('mapActivitiesToAnimationRuns keeps only AlpineSki activities and maps fiel
 });
 
 
-test('mapActivitiesToAnimationRuns rejects non-AlpineSki activities', () => {
+test('mapActivitiesToAnimationRuns includes legacy Ski type and rejects non-ski sports', () => {
   const runs = mapActivitiesToAnimationRuns([
     {
       id: 201,
@@ -44,8 +44,62 @@ test('mapActivitiesToAnimationRuns rejects non-AlpineSki activities', () => {
     }
   ]);
 
-  assert.deepEqual(runs, []);
+  assert.deepEqual(runs.map((run) => run.id), ['strava-201']);
 });
+
+
+test('mapActivitiesToAnimationRuns accepts normalized Alpine ski variants from integrations', () => {
+  const runs = mapActivitiesToAnimationRuns([
+    {
+      id: 301,
+      name: 'Integration Label Alpine Ski',
+      sport_type: 'Alpine Ski',
+      distance: 3100,
+      moving_time: 900,
+      total_elevation_gain: 300,
+      start_date_local: '2026-01-04T08:00:00Z'
+    },
+    {
+      id: 302,
+      name: 'Underscore Variant',
+      sport_type: 'alpine_ski',
+      distance: 4500,
+      moving_time: 1100,
+      total_elevation_gain: 410,
+      start_date_local: '2026-01-04T09:00:00Z'
+    },
+    {
+      id: 303,
+      name: 'Non Ski Control',
+      sport_type: 'Ride',
+      distance: 8000,
+      moving_time: 1400,
+      total_elevation_gain: 200,
+      start_date_local: '2026-01-04T10:00:00Z'
+    }
+  ]);
+
+  assert.deepEqual(runs.map((run) => run.id), ['strava-301', 'strava-302']);
+});
+
+
+
+test('mapActivitiesToAnimationRuns falls back to start_date when start_date_local is absent', () => {
+  const runs = mapActivitiesToAnimationRuns([
+    {
+      id: 401,
+      name: 'UTC Timestamp Only',
+      sport_type: 'AlpineSki',
+      distance: 5000,
+      moving_time: 1200,
+      total_elevation_gain: 420,
+      start_date: '2026-02-06T12:00:00Z'
+    }
+  ]);
+
+  assert.equal(runs[0].startDateLocal, '2026-02-06T12:00:00Z');
+});
+
 
 test('buildAuthorizeUrl includes required oauth fields', () => {
   const url = new URL(

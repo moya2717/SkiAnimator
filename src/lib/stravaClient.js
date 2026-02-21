@@ -16,6 +16,10 @@ function normalizeSportType(activity) {
   return String(activity.sport_type ?? activity.type ?? '').trim();
 }
 
+function canonicalizeSportType(activity) {
+  return normalizeSportType(activity).toLowerCase().replace(/[^a-z]/g, '');
+}
+
 const WINTER_SPORT_TYPES = new Set([
   'alpineski',
   'backcountryski',
@@ -38,12 +42,12 @@ function toSportLabel(activity) {
 }
 
 export function isAlpineSki(activity) {
-  return normalizeSportType(activity).toLowerCase() === 'alpineski';
+  const sportType = canonicalizeSportType(activity);
+  return sportType === 'alpineski' || sportType === 'ski';
 }
 
 export function isWinterSport(activity) {
-  const sportType = normalizeSportType(activity).toLowerCase();
-  return WINTER_SPORT_TYPES.has(sportType);
+  return WINTER_SPORT_TYPES.has(canonicalizeSportType(activity));
 }
 
 function activityDifficulty(activity) {
@@ -65,7 +69,7 @@ function mapActivityBase(activity) {
     distanceKm: Number(((activity.distance ?? 0) / 1000).toFixed(2)),
     verticalM: Math.round(activity.total_elevation_gain ?? 0),
     durationMinutes: Math.max(1, Math.round((activity.moving_time ?? 0) / 60)),
-    startDateLocal: activity.start_date_local,
+    startDateLocal: activity.start_date_local ?? activity.start_date ?? null,
     source: 'strava'
   };
 }

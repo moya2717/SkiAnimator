@@ -147,6 +147,16 @@ function parseDayParam(day) {
   return /^\d{4}-\d{2}-\d{2}$/.test(day ?? '') ? day : null;
 }
 
+
+function normalizeIsoDay(value) {
+  const day = String(value ?? '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null;
+}
+
+function normalizeIsoYear(value) {
+  const day = normalizeIsoDay(value);
+  return day ? day.slice(0, 4) : null;
+}
 function buildEpochRange({ year, day }) {
   const startIso = day ? `${day}T00:00:00Z` : `${year}-01-01T00:00:00Z`;
   const endIso = day
@@ -295,7 +305,7 @@ export function createRequestHandler(
         const token = await ensureFreshToken(tokenStore, stravaConfig);
         const activities = await fetchAthleteActivityPages(token.access_token, stravaFetch, stravaPageSize);
         const years = [...new Set(mapActivitiesToAlpineActivities(activities)
-          .map((activity) => String(activity.startDateLocal).slice(0, 4))
+          .map((activity) => normalizeIsoYear(activity.startDateLocal))
           .filter(Boolean))].sort((a, b) => b.localeCompare(a));
         sendJson(response, 200, { years, mode: 'strava' });
       } catch {
@@ -328,7 +338,7 @@ export function createRequestHandler(
         const activities = await fetchAthleteActivityPages(token.access_token, stravaFetch, stravaPageSize, range);
         const alpine = mapActivitiesToAlpineActivities(activities);
         const grouped = alpine.reduce((acc, activity) => {
-          const day = String(activity.startDateLocal).slice(0, 10);
+          const day = normalizeIsoDay(activity.startDateLocal);
           if (!day) return acc;
           acc.set(day, (acc.get(day) ?? 0) + 1);
           return acc;

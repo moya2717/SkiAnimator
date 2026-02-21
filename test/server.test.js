@@ -131,7 +131,7 @@ test('GET /api/strava/status returns connected state when token exists', async (
 
 
 
-test('GET /api/runs paginates Strava activities and includes only AlpineSki entries', async () => {
+test('GET /api/runs paginates Strava activities and includes AlpineSki + legacy Ski entries', async () => {
   const responses = [
     [
       {
@@ -188,8 +188,8 @@ test('GET /api/runs paginates Strava activities and includes only AlpineSki entr
 
       const { status, body } = await requestJson(baseUrl, '/api/runs');
       assert.equal(status, 200);
-      assert.equal(body.runs.length, 1);
-      assert.equal(body.runs[0].id, 'strava-602');
+      assert.equal(body.runs.length, 2);
+      assert.deepEqual(body.runs.map((run) => run.id), ['strava-601', 'strava-602']);
       assert.equal(body.runs[0].source, 'strava');
     },
     { stravaFetch, stravaPageSize: 1 }
@@ -448,6 +448,43 @@ test('GET /api/alpine/runs returns runs for selected day', async () => {
       assert.equal(status, 200);
       assert.equal(body.runs.length, 1);
       assert.equal(body.runs[0].id, 'strava-901');
+    },
+    { stravaFetch }
+  );
+});
+
+
+test('GET /api/alpine/years uses start_date fallback when start_date_local is missing', async () => {
+  const stravaFetch = async () => ({
+    ok: true,
+    status: 200,
+    async json() {
+      return [
+        {
+          id: 990,
+          name: 'Fallback Timestamp Alpine',
+          distance: 6000,
+          moving_time: 1800,
+          total_elevation_gain: 500,
+          sport_type: 'AlpineSki',
+          start_date: '2026-01-05T08:00:00Z'
+        }
+      ];
+    }
+  });
+
+  await withConfiguredServer(
+    async (baseUrl, tokenStore) => {
+      tokenStore.set({
+        access_token: 'token-1',
+        refresh_token: 'refresh-1',
+        expires_at: 9999999999,
+        athlete: { username: 'ski-user' }
+      });
+
+      const { status, body } = await requestJson(baseUrl, '/api/alpine/years');
+      assert.equal(status, 200);
+      assert.deepEqual(body.years, ['2026']);
     },
     { stravaFetch }
   );
