@@ -1,3 +1,5 @@
+import { chooseZoomForBounds, computeBounds, latLonToWorldPixels, tileRangeForBounds } from './geo.js';
+
 function colorForDifficulty(level) {
   if (level === 'black') {
     return '#f97316';
@@ -45,18 +47,6 @@ function renderRunList(element, runs) {
         `<li><strong>${run.name}</strong> — ${run.distanceKm} km, ${run.verticalM} m vertical, ${run.durationMinutes} min (${run.source})</li>`
     )
     .join('');
-}
-
-function computeBounds(points) {
-  return points.reduce(
-    (bounds, point) => ({
-      minLat: Math.min(bounds.minLat, point.lat),
-      maxLat: Math.max(bounds.maxLat, point.lat),
-      minLon: Math.min(bounds.minLon, point.lon),
-      maxLon: Math.max(bounds.maxLon, point.lon)
-    }),
-    { minLat: Infinity, maxLat: -Infinity, minLon: Infinity, maxLon: -Infinity }
-  );
 }
 
 function createProjector(canvas, points, padding = 20) {
@@ -114,7 +104,62 @@ function drawTrack(context, projectedPoints, color) {
   context.stroke();
 }
 
-function animateRunTrack(canvas, run, track) {
+function loadTileImage(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error(`Failed to load ${url}`));
+    image.src = url;
+  });
+}
+
+async function buildMapBackdrop(canvas, points, padding = 20) {
+  const bounds = computeBounds(points);
+  const zoom = chooseZoomForBounds(bounds, canvas.width, canvas.height, padding);
+  const tileRange = tileRangeForBounds(bounds, zoom);
+  const topLeftWorld = latLonToWorldPixels(bounds.maxLat, bounds.minLon, zoom);
+  const drawCanvas = document.createElement('canvas');
+
+  drawCanvas.width = canvas.width;
+  drawCanvas.height = canvas.height;
+  const drawContext = drawCanvas.getContext('2d');
+  if (!drawContext) {
+    return null;
+  }
+
+  drawBackdrop(drawContext, canvas.width, canvas.height);
+
+  const tilePromises = [];
+  for (let tileX = tileRange.minTileX; tileX <= tileRange.maxTileX; tileX += 1) {
+    for (let tileY = tileRange.minTileY; tileY <= tileRange.maxTileY; tileY += 1) {
+      const url = `https://tile.openstreetmap.org/${zoom}/${tileX}/${tileY}.png`;
+      tilePromises.push(
+        loadTileImage(url)
+          .then((image) => ({ image, tileX, tileY }))
+          .catch(() => null)
+      );
+    }
+  }
+
+  const tiles = await Promise.all(tilePromises);
+  const visibleTiles = tiles.filter(Boolean);
+  if (visibleTiles.length === 0) {
+    return null;
+  }
+
+  visibleTiles.forEach(({ image, tileX, tileY }) => {
+    const dx = padding + tileX * 256 - topLeftWorld.x;
+    const dy = padding + tileY * 256 - topLeftWorld.y;
+    drawContext.drawImage(image, dx, dy, 256, 256);
+  });
+
+  drawContext.fillStyle = 'rgba(2, 6, 23, 0.25)';
+  drawContext.fillRect(0, 0, canvas.width, canvas.height);
+  return drawCanvas;
+}
+
+async function animateRunTrack(canvas, run, track) {
   const context = canvas.getContext('2d');
   if (!context || !track || !Array.isArray(track.points) || track.points.length === 0) {
     return;
@@ -122,9 +167,14 @@ function animateRunTrack(canvas, run, track) {
 
   const project = createProjector(canvas, track.points);
   const projectedTrack = track.points.map(project);
+  const mapBackdrop = await buildMapBackdrop(canvas, track.points);
 
   function frame() {
-    drawBackdrop(context, canvas.width, canvas.height);
+    if (mapBackdrop) {
+      context.drawImage(mapBackdrop, 0, 0);
+    } else {
+      drawBackdrop(context, canvas.width, canvas.height);
+    }
     drawTrack(context, projectedTrack, colorForDifficulty(run.difficulty));
 
     const progress = trackProgress(track.points, Date.now());
@@ -226,7 +276,7 @@ async function boot() {
   const primaryRun = data.runs[0];
   const track = primaryRun ? await loadRunTrack(primaryRun.id) : null;
   if (track) {
-    animateRunTrack(canvas, primaryRun, track);
+    await animateRunTrack(canvas, primaryRun, track);
     return;
   }
 
