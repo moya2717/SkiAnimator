@@ -65,7 +65,7 @@ export function buildAuthorizeUrl({ clientId, redirectUri, state }) {
   return `${STRAVA_OAUTH_BASE}/authorize?${query.toString()}`;
 }
 
-export async function exchangeCodeForToken({ code, clientId, clientSecret, fetchImpl = fetch }) {
+export async function exchangeCodeForToken({ code, clientId, clientSecret, redirectUri, fetchImpl = fetch }) {
   const response = await fetchImpl(`${STRAVA_OAUTH_BASE}/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -73,7 +73,8 @@ export async function exchangeCodeForToken({ code, clientId, clientSecret, fetch
       code,
       grant_type: 'authorization_code',
       client_id: clientId,
-      client_secret: clientSecret
+      client_secret: clientSecret,
+      redirect_uri: redirectUri
     })
   });
 

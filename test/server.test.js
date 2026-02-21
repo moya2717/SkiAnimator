@@ -165,3 +165,37 @@ test('GET /api/runs/:id/track returns Strava stream track for connected user', a
     { stravaFetch }
   );
 });
+
+
+test('GET /auth/strava/callback redirects with Strava provider error details', async () => {
+  await withConfiguredServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/auth/strava/callback?error=access_denied`, {
+      redirect: 'manual'
+    });
+
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get('location'), '/?strava=denied&strava_reason=access_denied');
+  });
+});
+
+test('GET /auth/strava/callback redirects with token exchange failure details', async () => {
+  const stravaFetch = async () => ({
+    ok: false,
+    status: 400,
+    async json() {
+      return { message: 'invalid client secret' };
+    }
+  });
+
+  await withConfiguredServer(
+    async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/auth/strava/callback?code=bad-code`, { redirect: 'manual' });
+      assert.equal(response.status, 302);
+      assert.equal(
+        response.headers.get('location'),
+        '/?strava=auth-error&strava_reason=invalid%20client%20secret'
+      );
+    },
+    { stravaFetch }
+  );
+});
