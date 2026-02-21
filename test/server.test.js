@@ -54,6 +54,21 @@ test('fixture has deterministic run data', async () => {
   assert.deepEqual(data.runs.map((run) => run.name), ['Summit Line', 'Pine Traverse', 'Valley Cruiser']);
 });
 
+
+test('dashboard search input sets explicit autocomplete attribute', async () => {
+  const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
+  assert.match(html, /id="searchInput"[^>]*autocomplete="off"/);
+});
+
+
+test('frontend bundle avoids string evaluation patterns for CSP compatibility', async () => {
+  const appJs = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(appJs, /\beval\s*\(/);
+  assert.doesNotMatch(appJs, /new\s+Function\s*\(/);
+  assert.doesNotMatch(appJs, /setTimeout\s*\(\s*['"]/);
+  assert.doesNotMatch(appJs, /setInterval\s*\(\s*['"]/);
+});
+
 test('GET /api/ski-days returns deterministic local fixtures', async () => {
   await withServer(async (baseUrl) => {
     const { status, body } = await requestJson(baseUrl, '/api/ski-days');
